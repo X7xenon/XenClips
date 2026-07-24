@@ -1,0 +1,255 @@
+import os
+import json
+import re
+import time
+
+from google import genai
+from google.genai import types
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# ==========================
+# CONFIG
+# ==========================
+
+import gemini_usage
+
+MODEL = "gemini-2.5-flash"
+
+
+# ==========================
+# LOAD TRANSCRIPT
+# ==========================
+
+def load_transcript(path):
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def transcript_to_text(transcript):
+    lines = []
+
+    for item in transcript:
+        t = int(item["start"])
+        h = t // 3600
+        m = (t % 3600) // 60
+        s = t % 60
+
+        timestamp = f"{h:02d}:{m:02d}:{s:02d}"
+
+        lines.append(f"[{timestamp}] {item['text']}")
+
+    return "\n".join(lines)
+
+
+# ==========================
+# PROMPT
+# ==========================
+
+def build_prompt(text, target_duration=None, num_clips=6):
+    duration_rule = ""
+    if target_duration:
+        duration_rule = f"- Each clip should be close to {target_duration} seconds (±10s tolerance)\n"
+    else:
+        duration_rule = "- Each clip must be 50–80 seconds\n"
+
+    return f"""
+You are an elite, world-class YouTube Shorts & TikTok editor and retention strategist.
+
+CRITICAL DIRECTIVE: You MUST read and analyze the ENTIRE transcript from start to finish before selecting clips. Do not just pick moments from the beginning. Many of the most viral, high-retention moments happen in the middle or at the end. Analyze the full narrative arc and context.
+
+Task:
+1. First, determine the CATEGORY of this video content (e.g. podcast, comedy, interview, motivation, educational, storytelling, gaming, reaction, news, vlog, debate, review).
+2. Deeply analyze the full transcript to find the absolute strongest, most viral moments.
+3. For each clip, analyze the emotional intensity and suggest sound effect cue points.
+
+Rules:
+- Extract EXACTLY {num_clips} viral clips. Not more, not less.
+{duration_rule}- No overlap between clips
+- Focus ONLY on elite, high-retention moments that will hook viewers in the first 3 seconds and keep them watching until the end.
+- Classify each clip's segment type: "viral" (default), "qa" (clear question+answer), "chapter_boundary" (topic shift), "product_mention" (brand/product named)
+
+Prioritize (in order of viral potential):
+- Shocking moments / plot twists / unexpected reveals
+- Highly emotional statements / raw vulnerability / anger
+- Story climaxes / hard-hitting punchlines
+- Intense motivational peaks
+- Extreme controversy / hot takes / bold opinions
+- Highly interesting facts / counter-intuitive knowledge
+- Strong hooks / massive attention grabbers
+
+For SFX cues, suggest 0–3 sound effect trigger points per clip. Use these types:
+- "whoosh" — on fast cuts, transitions, or emphasis
+- "ding" — on key numbers, reveals, or important points
+- "dramatic_hit" — on punchlines, shocking reveals, or climaxes
+- "reaction" — on funny/surprising moments
+- "pop" — on quick visual emphasis
+- "laugh" — on genuinely funny moments
+
+Return ONLY a valid JSON array. No markdown fences, no explanation, no intro text.
+
+Format:
+
+[
+  {{
+    "title": "",
+    "hook": "",
+    "hook_text": "",
+    "start": 0,
+    "end": 0,
+    "duration": 0,
+    "viral_score": 0,
+    "reason": "",
+    "category": "podcast",
+    "segment_type": "viral",
+    "topic": "",
+    "product_mentions": [],
+    "emotional_intensity": 0.0,
+    "sfx_cues": [
+      {{"time_offset": 2.4, "type": "whoosh"}},
+      {{"time_offset": 12.1, "type": "ding"}}
+    ]
+  }}
+]
+
+IMPORTANT:
+- "category" should be the SAME for all clips (it describes the source video, not individual clips)
+- "viral_score" should be an honest assessment out of 100 based on modern short-form retention metrics.
+- "emotional_intensity" is a float 0.0–1.0 (0 = calm talking, 1 = screaming/crying/peak emotion)
+- "sfx_cues" time_offset is RELATIVE to clip start (0 = beginning of clip)
+- "hook_text" is the attention-grabbing opening line viewers see first (same as "hook" if not different)
+
+Transcript (Read ENTIRELY before answering):
+{{text}}
+"""
+
+
+# ==========================
+# GEMINI CALL
+# ==========================
+
+def ask_nemotron(prompt):
+    from openai import OpenAI
+    client = OpenAI(
+      base_url = "https://integrate.api.nvidia.com/v1",
+      api_key = os.getenv("NVIDIA_API_KEY", "YOUR_NVIDIA_API_KEY")
+    )
+    completion = client.chat.completions.create(
+      model="nvidia/nemotron-3-ultra-550b-a55b",
+      messages=[{"role":"user","content":prompt}],
+      temperature=1,
+      top_p=0.95,
+      max_tokens=16384,
+      extra_body={"chat_template_kwargs":{"enable_thinking":True},"reasoning_budget":16384}
+    )
+    return completion.choices[0].message.content
+
+def ask_gemini(prompt):
+    api_key = gemini_usage.get_available_key()
+    client = genai.Client(api_key=api_key)
+    
+    response = client.models.generate_content(
+        model=MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=0.3
+        ),
+    )
+    
+    # Increment usage on successful call
+    gemini_usage.increment_usage(api_key)
+    
+    return response.text
+
+
+# ==========================
+# PARSE JSON
+# ==========================
+
+def extract_json(text):
+    text = text.strip()
+    text = text.replace("```json", "").replace("```", "")
+
+    match = re.search(r"\[.*\]", text, re.DOTALL)
+    if not match:
+        raise ValueError("Invalid JSON from Gemini")
+
+    return json.loads(match.group())
+
+
+# ==========================
+# MAIN FUNCTION
+# ==========================
+
+def generate_viral_clips(transcript_path, target_duration=None, num_clips=6):
+
+    transcript = load_transcript(transcript_path)
+    text = transcript_to_text(transcript)
+
+    prompt = build_prompt(text, target_duration=target_duration, num_clips=num_clips)
+
+    print("\nAnalyzing transcript for viral moments...\n")
+
+    for attempt in range(3):
+        try:
+            print(f"Attempt {attempt+1} - Trying Gemini...")
+            response = ask_gemini(prompt)
+            clips = extract_json(response)
+            clips = clips[:num_clips]
+            print(f"\nFound {len(clips)} viral clips using Gemini\n")
+            return clips
+        except Exception as e:
+            print(f"Gemini failed ({e}), falling back to NVIDIA Nemotron...")
+            try:
+                response = ask_nemotron(prompt)
+                clips = extract_json(response)
+                clips = clips[:num_clips]
+                print(f"\nFound {len(clips)} viral clips using Nemotron\n")
+                return clips
+            except Exception as nemotron_e:
+                print("Nemotron retry failed:", nemotron_e)
+                time.sleep(2)
+
+    raise Exception("Failed to generate clips using both Gemini and Nemotron")
+
+
+# ==========================
+# SAVE OUTPUT
+# ==========================
+
+import os
+import json
+
+def save_clips(clips, workspace):
+
+    # correct folder structure
+    clips_dir = os.path.join(workspace, "clips")
+    os.makedirs(clips_dir, exist_ok=True)
+
+    output_path = os.path.join(clips_dir, "clips.json")
+
+    data = {
+        "total_clips": len(clips),
+        "clips": clips
+    }
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+    print("\nSaved clips at:", output_path)
+
+    return output_path
+# ==========================
+# RUN
+# ==========================
+
+if __name__ == "__main__":
+
+    path = input("Transcript JSON Path: ").strip()
+
+    clips = generate_viral_clips(path)
+
+    save_clips(clips)
+
+    print("\nDONE 🚀")

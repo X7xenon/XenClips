@@ -1,0 +1,62 @@
+{
+  "impact": [
+    "boom",
+    "crazy",
+    "huge",
+    "insane",
+    "destroyed",
+    "mind-blowing",
+    "unbelievable",
+    "smash",
+    "crash",
+    "massive",
+    "wild"
+  ],
+  "success": [
+    "million",
+    "winner",
+    "profit",
+    "win",
+    "success",
+    "money",
+    "rich",
+    "achieve",
+    "goal",
+    "victory",
+    "perfect"
+  ],
+  "surprise": [
+    "wow",
+    "wait",
+    "omg",
+    "shock",
+    "surprise",
+    "suddenly",
+    "whoa",
+    "really",
+    "secret",
+    "truth"
+  ],
+  "error": [
+    "wrong",
+    "fail",
+    "mistake",
+    "error",
+    "lose",
+    "bad",
+    "never",
+    "worse"
+  ],
+  "highlight": [
+    "proven",
+    "system",
+    "result",
+    "results",
+    "guarantee",
+    "exactly",
+    "instantly",
+    "always",
+    "biggest",
+    "warning"
+  ]
+}

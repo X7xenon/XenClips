@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Environment
+.env
+.env.local
+
+# Outputs / Large files
+downloads/
+Sound effects/
+*.mp4
+*.mkv
+*.webm
+*.pt
+yolov8n.pt
+
+# Node / JS (Frontend)
+xenclips/node_modules/
+xenclips/dist/
+xenclips/.npm/
+xenclips/.pnpm-store/
+xenclips/.tanstack/
+
+# OS / Editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+model/model.bin
+gemini_usage.json
+db.json
+cookies.txt
