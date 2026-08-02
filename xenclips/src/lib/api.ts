@@ -1,4 +1,7 @@
-const DEFAULT_BASE = "http://localhost:8000";
+const DEFAULT_BASE =
+  typeof window !== "undefined"
+    ? `${window.location.protocol}//${window.location.hostname}:8000`
+    : "http://localhost:8000";
 
 export function getApiBase(): string {
   if (typeof window === "undefined") return DEFAULT_BASE;
@@ -49,6 +52,7 @@ export interface Clip {
   video_path?: string;
   duration: number; // seconds
   hook_text: string;
+  hook_style?: string;
   emoji: string;
   reaction_moment?: boolean;
   layout?: LayoutTemplate;
@@ -65,12 +69,7 @@ export interface Clip {
 }
 
 export type LayoutTemplate =
-  | "full_vertical"
-  | "bw_letterbox"
-  | "blur_bg"
-  | "ishowspeed"
-  | "original"
-  | "vertical_no_tracking";
+  "full_vertical" | "bw_letterbox" | "blur_bg" | "streamer" | "original" | "vertical_no_tracking";
 
 export type CaptionTemplate =
   | "alex_hormozi"
@@ -106,6 +105,7 @@ export interface ClipSettings {
   layout: LayoutTemplate;
   hook_text_enabled: boolean;
   hook_text: string;
+  hook_style: string;
   fade_in: number;
   fade_out: number;
   zoom_punch: boolean;
@@ -118,6 +118,7 @@ export const DEFAULT_CLIP_SETTINGS: ClipSettings = {
   layout: "full_vertical",
   hook_text_enabled: true,
   hook_text: "",
+  hook_style: "default",
   fade_in: 0.3,
   fade_out: 0.3,
   zoom_punch: false,
@@ -182,8 +183,19 @@ export interface GeminiKeyStatus {
 }
 
 export interface GeminiSettings {
-  keys: GeminiKeyStatus[];
+  keys: Array<{ key: string; used_today: number }>;
   limit_per_key: number;
+  model: string;
+}
+
+export interface AppSettings {
+  whatsapp_enabled: boolean;
+  whatsapp_number: string;
+}
+
+export interface Preset {
+  preset_id: string;
+  data: Record<string, any>;
 }
 
 export const api = {
@@ -231,6 +243,11 @@ export const api = {
       sfx_enabled?: boolean;
       sfx_volume?: number;
       sfx_pack?: string;
+      generate_captions?: boolean;
+      hook_style?: string;
+      clip_vibe?: string;
+      hook_vibe?: string;
+      fade_enabled?: boolean;
       smart_zoom_enabled?: boolean;
       smart_zoom_style?: "smooth" | "punch" | "cinematic" | "dynamic";
       smart_zoom_intensity?: "low" | "medium" | "high";
@@ -259,19 +276,31 @@ export const api = {
     if (opts.sfx_enabled != null) fd.append("sfx_enabled", String(opts.sfx_enabled));
     if (opts.sfx_volume != null) fd.append("sfx_volume", String(opts.sfx_volume));
     if (opts.sfx_pack != null) fd.append("sfx_pack", opts.sfx_pack);
-    if (opts.smart_zoom_enabled != null) fd.append("smart_zoom_enabled", String(opts.smart_zoom_enabled));
+    if (opts.generate_captions != null)
+      fd.append("generate_captions", String(opts.generate_captions));
+    if (opts.hook_style != null) fd.append("hook_style", opts.hook_style);
+    if (opts.clip_vibe != null) fd.append("clip_vibe", opts.clip_vibe);
+    if (opts.hook_vibe != null) fd.append("hook_vibe", opts.hook_vibe);
+    if (opts.fade_enabled != null) fd.append("fade_enabled", String(opts.fade_enabled));
+    if (opts.smart_zoom_enabled != null)
+      fd.append("smart_zoom_enabled", String(opts.smart_zoom_enabled));
     if (opts.smart_zoom_style != null) fd.append("smart_zoom_style", opts.smart_zoom_style);
-    if (opts.smart_zoom_intensity != null) fd.append("smart_zoom_intensity", opts.smart_zoom_intensity);
-    if (opts.speed_ramp_enabled != null) fd.append("speed_ramp_enabled", String(opts.speed_ramp_enabled));
+    if (opts.smart_zoom_intensity != null)
+      fd.append("smart_zoom_intensity", opts.smart_zoom_intensity);
+    if (opts.speed_ramp_enabled != null)
+      fd.append("speed_ramp_enabled", String(opts.speed_ramp_enabled));
     if (opts.speed_ramp_max != null) fd.append("speed_ramp_max", String(opts.speed_ramp_max));
-    if (opts.watermark_enabled != null) fd.append("watermark_enabled", String(opts.watermark_enabled));
+    if (opts.watermark_enabled != null)
+      fd.append("watermark_enabled", String(opts.watermark_enabled));
     if (opts.watermark_type != null) fd.append("watermark_type", opts.watermark_type);
     if (opts.watermark_text != null) fd.append("watermark_text", opts.watermark_text);
     if (opts.watermark_position != null) fd.append("watermark_position", opts.watermark_position);
-    if (opts.watermark_opacity != null) fd.append("watermark_opacity", String(opts.watermark_opacity));
+    if (opts.watermark_opacity != null)
+      fd.append("watermark_opacity", String(opts.watermark_opacity));
     if (opts.watermark_scale != null) fd.append("watermark_scale", String(opts.watermark_scale));
     if (opts.watermark_margin != null) fd.append("watermark_margin", String(opts.watermark_margin));
-    if (opts.watermark_animation != null) fd.append("watermark_animation", opts.watermark_animation);
+    if (opts.watermark_animation != null)
+      fd.append("watermark_animation", opts.watermark_animation);
     if (opts.watermark_file != null) fd.append("watermark_file", opts.watermark_file);
     return request<{ job_id: string }>("/process", { method: "POST", body: fd });
   },
@@ -299,15 +328,39 @@ export const api = {
   cleanupJob: (jobId: string) =>
     request<{ status: string }>(`/jobs/${jobId}/cleanup`, { method: "POST" }),
   getGeminiSettings: () => request<GeminiSettings>("/gemini-settings"),
-  updateGeminiSettings: (keys: string[], limit_per_key: number) =>
+  updateGeminiSettings: (keys: string[], limit_per_key: number, model: string) =>
     request<{ status: string }>("/gemini-settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ keys, limit_per_key }),
+      body: JSON.stringify({ keys, limit_per_key, model }),
     }),
+  getAppSettings: () => request<AppSettings>("/app-settings"),
+  updateAppSettings: (whatsapp_enabled: boolean, whatsapp_number: string) =>
+    request<{ status: string }>("/app-settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ whatsapp_enabled, whatsapp_number }),
+    }),
+  getWhatsappStatus: () => request<{ connected: boolean; error?: string }>("/whatsapp/status"),
+  getWhatsappQr: () =>
+    request<{ connected: boolean; qr: string | null; error?: string; message?: string }>(
+      "/whatsapp/qr",
+    ),
+  testWhatsapp: () => request<{ status: string }>("/whatsapp/test", { method: "POST" }),
   jobs: () => request<any[]>("/jobs"),
-  cancelJob: (jobId: string) => request<{ status: string }>(`/jobs/${jobId}/cancel`, { method: "POST" }),
+  cancelJob: (jobId: string) =>
+    request<{ status: string }>(`/jobs/${jobId}/cancel`, { method: "POST" }),
   removeJob: (jobId: string) => request<{ status: string }>(`/jobs/${jobId}`, { method: "DELETE" }),
+  shutdown: () => request<{ status: string }>("/shutdown", { method: "POST" }),
+  getPresets: () => request<Record<string, Record<string, any>>>("/presets"),
+  savePreset: (preset_id: string, data: Record<string, any>) =>
+    request<{ status: string }>("/presets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ preset_id, data }),
+    }),
+  deletePreset: (preset_id: string) =>
+    request<{ status: string }>(`/presets/${preset_id}`, { method: "DELETE" }),
 };
 
 // Local settings (persisted client-side; backend can also expose /settings later)

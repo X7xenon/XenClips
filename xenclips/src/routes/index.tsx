@@ -9,6 +9,8 @@ import {
   ChevronDown,
   Film,
   Zap,
+  Bookmark,
+  Save,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -149,6 +151,13 @@ function UploadPage() {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [presets, setPresets] = useState<Record<string, Record<string, any>>>({});
+  const [selectedPreset, setSelectedPreset] = useState<string>("");
+
+  useEffect(() => {
+    api.getPresets().then((data) => setPresets(data)).catch((e) => console.error(e));
+  }, []);
+
   const [layouts, setLayouts] = useState<LayoutTemplate[]>(() => {
     if (typeof window !== "undefined") {
       try {
@@ -180,6 +189,24 @@ function UploadPage() {
     }
     return "bottom";
   });
+  const [hookStyle, setHookStyle] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("upload.hookStyle") || "default";
+    }
+    return "default";
+  });
+  const [clipVibe, setClipVibe] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("upload.clipVibe") || "viral";
+    }
+    return "viral";
+  });
+  const [hookVibe, setHookVibe] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("upload.hookVibe") || "clickbait";
+    }
+    return "clickbait";
+  });
   const [maxWordsOn, setMaxWordsOn] = useState(() => {
     if (typeof window !== "undefined") return localStorage.getItem("upload.maxWordsOn") === "true";
     return false;
@@ -206,7 +233,14 @@ function UploadPage() {
   const [sfxEnabled, setSfxEnabled] = useState(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("upload.sfxEnabled");
-      if (saved !== null) return saved === "true";
+      if (saved != null) return saved === "true";
+    }
+    return true;
+  });
+  const [fadeEnabled, setFadeEnabled] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("upload.fadeEnabled");
+      if (saved != null) return saved === "true";
     }
     return true;
   });
@@ -257,6 +291,15 @@ function UploadPage() {
     localStorage.setItem("upload.position", position);
   }, [position]);
   useEffect(() => {
+    localStorage.setItem("upload.hookStyle", hookStyle);
+  }, [hookStyle]);
+  useEffect(() => {
+    localStorage.setItem("upload.clipVibe", clipVibe);
+  }, [clipVibe]);
+  useEffect(() => {
+    localStorage.setItem("upload.hookVibe", hookVibe);
+  }, [hookVibe]);
+  useEffect(() => {
     localStorage.setItem("upload.maxWordsOn", String(maxWordsOn));
   }, [maxWordsOn]);
   useEffect(() => {
@@ -274,6 +317,10 @@ function UploadPage() {
   useEffect(() => {
     localStorage.setItem("upload.sfxEnabled", String(sfxEnabled));
   }, [sfxEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem("upload.fadeEnabled", String(fadeEnabled));
+  }, [fadeEnabled]);
   useEffect(() => {
     localStorage.setItem("upload.sfxVolume", String(sfxVolume));
   }, [sfxVolume]);
@@ -425,10 +472,64 @@ function UploadPage() {
   const layoutsValid = layouts.length >= 1;
   const hasInput = url.trim().length > 0 || file != null;
   const canSubmit = hasInput && !submitting && !jobId && templatesValid && layoutsValid;
-  const includesSmartCrop = layouts.includes("full_vertical") || layouts.includes("ishowspeed");
+  const includesSmartCrop = layouts.includes("full_vertical");
   const estClips = numClips;
   const estTotal = estClips * layouts.length * (captionsOn ? templates.length : 1);
   const current = stepIndexFor(status?.step, status?.progress);
+
+  const applyPreset = (presetId: string) => {
+    const p = presets[presetId];
+    if (!p) return;
+    setSelectedPreset(presetId);
+    if (p.layouts !== undefined) setLayouts(p.layouts);
+    if (p.templates !== undefined) setTemplates(p.templates);
+    if (p.captionsOn !== undefined) setCaptionsOn(p.captionsOn);
+    if (p.position !== undefined) setPosition(p.position);
+    if (p.hookStyle !== undefined) setHookStyle(p.hookStyle);
+    if (p.clipVibe !== undefined) setClipVibe(p.clipVibe);
+    if (p.hookVibe !== undefined) setHookVibe(p.hookVibe);
+    if (p.maxWordsOn !== undefined) setMaxWordsOn(p.maxWordsOn);
+    if (p.maxWords !== undefined) setMaxWords(p.maxWords);
+    if (p.fontSizeOn !== undefined) setFontSizeOn(p.fontSizeOn);
+    if (p.fontSize !== undefined) setFontSize(p.fontSize);
+    if (p.numClips !== undefined) setNumClips(p.numClips);
+    if (p.sfxEnabled !== undefined) setSfxEnabled(p.sfxEnabled);
+    if (p.fadeEnabled !== undefined) setFadeEnabled(p.fadeEnabled);
+    if (p.sfxVolume !== undefined) setSfxVolume(p.sfxVolume);
+    if (p.smartZoomEnabled !== undefined) setSmartZoomEnabled(p.smartZoomEnabled);
+    if (p.smartZoomStyle !== undefined) setSmartZoomStyle(p.smartZoomStyle);
+    if (p.smartZoomIntensity !== undefined) setSmartZoomIntensity(p.smartZoomIntensity);
+    if (p.speedRampEnabled !== undefined) setSpeedRampEnabled(p.speedRampEnabled);
+    if (p.speedRampMax !== undefined) setSpeedRampMax(p.speedRampMax);
+    if (p.watermarkEnabled !== undefined) setWatermarkEnabled(p.watermarkEnabled);
+    if (p.watermarkType !== undefined) setWatermarkType(p.watermarkType);
+    if (p.watermarkText !== undefined) setWatermarkText(p.watermarkText);
+    if (p.watermarkPosition !== undefined) setWatermarkPosition(p.watermarkPosition);
+    if (p.watermarkOpacity !== undefined) setWatermarkOpacity(p.watermarkOpacity);
+    if (p.watermarkScale !== undefined) setWatermarkScale(p.watermarkScale);
+    if (p.watermarkMargin !== undefined) setWatermarkMargin(p.watermarkMargin);
+    if (p.watermarkAnimation !== undefined) setWatermarkAnimation(p.watermarkAnimation);
+  };
+
+  const handleSavePreset = async () => {
+    const name = window.prompt("Enter a name for this preset:");
+    if (!name || !name.trim()) return;
+    const presetId = name.trim();
+    const data = {
+      layouts, templates, captionsOn, position, hookStyle, clipVibe, hookVibe,
+      maxWordsOn, maxWords, fontSizeOn, fontSize, numClips, sfxEnabled, fadeEnabled,
+      sfxVolume, smartZoomEnabled, smartZoomStyle, smartZoomIntensity, speedRampEnabled,
+      speedRampMax, watermarkEnabled, watermarkType, watermarkText, watermarkPosition,
+      watermarkOpacity, watermarkScale, watermarkMargin, watermarkAnimation
+    };
+    try {
+      await api.savePreset(presetId, data);
+      setPresets(prev => ({ ...prev, [presetId]: data }));
+      setSelectedPreset(presetId);
+    } catch (e) {
+      alert("Failed to save preset: " + (e as Error).message);
+    }
+  };
 
   const submit = async () => {
     setError(null);
@@ -438,11 +539,16 @@ function UploadPage() {
         layouts,
         templates,
         position,
+        hook_style: hookStyle,
+        clip_vibe: clipVibe,
+        hook_vibe: hookVibe,
+        max_words: maxWordsOn ? maxWords : undefined,
         generate_captions: captionsOn,
         num_clips: numClips,
         sfx_enabled: sfxEnabled,
         sfx_volume: sfxVolume,
         sfx_pack: "default",
+        fade_enabled: fadeEnabled,
         ...(maxWordsOn ? { max_words: maxWords } : {}),
         ...(fontSizeOn ? { font_size: fontSize } : {}),
         ...(smartZoomEnabled
@@ -699,6 +805,34 @@ function UploadPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-8 max-w-6xl mx-auto w-full px-4">
         <div className="space-y-8">
+          
+          {/* ── Presets Section ── */}
+          <section className="glass-panel p-4 flex items-center justify-between">
+            <div className="flex items-center gap-4 flex-1">
+              <div className="flex items-center gap-2 text-white font-medium">
+                <Bookmark className="w-5 h-5 text-[#00F0FF]" />
+                Presets
+              </div>
+              <select
+                value={selectedPreset}
+                onChange={(e) => applyPreset(e.target.value)}
+                className="flex-1 max-w-xs px-3 py-2 bg-black/40 border border-[rgba(255,255,255,0.1)] rounded-lg text-white text-sm focus:ring-[#00F0FF] focus:border-[#00F0FF] outline-none"
+              >
+                <option value="">-- Choose a Preset --</option>
+                {Object.keys(presets).map((pId) => (
+                  <option key={pId} value={pId}>{pId}</option>
+                ))}
+              </select>
+            </div>
+            <button
+              onClick={handleSavePreset}
+              className="flex items-center gap-2 px-4 py-2 bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)] border border-[rgba(255,255,255,0.1)] rounded-lg text-sm font-medium text-white transition-colors"
+            >
+              <Save className="w-4 h-4 text-[#8A2BE2]" />
+              Save Settings as Preset
+            </button>
+          </section>
+
           {/* ── Input section ── */}
           <section>
             <div className="flex items-center justify-between mb-4">
@@ -859,6 +993,45 @@ function UploadPage() {
           </section>
 
           <section className="glass-panel p-5">
+            <div className="label-section mb-4">AI Vibe & Tone</div>
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-300 uppercase tracking-widest font-display mb-2 block">
+                  Clip Selection Theme
+                </label>
+                <select
+                  value={clipVibe}
+                  onChange={(e) => setClipVibe(e.target.value)}
+                  className="w-full bg-[rgba(0,0,0,0.3)] border border-[rgba(255,255,255,0.1)] rounded px-3 py-2 text-sm text-white font-display focus:border-[#00F0FF] focus:outline-none focus:ring-1 focus:ring-[#00F0FF] transition-all"
+                >
+                  <option value="viral">Viral & Shocking</option>
+                  <option value="funny">Funny & Comedic</option>
+                  <option value="serious">Serious & Deep</option>
+                  <option value="aura farm">Aura Farm / Hype</option>
+                  <option value="educational">Educational & Value</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="text-xs font-semibold text-gray-300 uppercase tracking-widest font-display mb-2 block">
+                  Hook Text Style
+                </label>
+                <select
+                  value={hookVibe}
+                  onChange={(e) => setHookVibe(e.target.value)}
+                  className="w-full bg-[rgba(0,0,0,0.3)] border border-[rgba(255,255,255,0.1)] rounded px-3 py-2 text-sm text-white font-display focus:border-[#00F0FF] focus:outline-none focus:ring-1 focus:ring-[#00F0FF] transition-all"
+                >
+                  <option value="clickbait">Clickbait & Shocking</option>
+                  <option value="funny">Funny & Meme</option>
+                  <option value="serious">Serious & Direct</option>
+                  <option value="mysterious">Curiosity & Mystery</option>
+                  <option value="bold">Bold & Aggressive</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <section className="glass-panel p-5">
             <div className="label-section mb-4">Placement</div>
             <div className="flex flex-col gap-2">
               {(["top", "center", "bottom"] as const).map((pos) => (
@@ -959,7 +1132,7 @@ function UploadPage() {
                     <input
                       type="range"
                       min={20}
-                      max={120}
+                      max={150}
                       value={fontSize}
                       onChange={(e) => setFontSize(Number(e.target.value))}
                     />
@@ -995,6 +1168,53 @@ function UploadPage() {
                   )}
                 </div>
 
+                <div>
+                  <div className="flex justify-between items-center mb-3">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <Switch
+                        checked={fadeEnabled}
+                        onCheckedChange={setFadeEnabled}
+                        className="data-[state=checked]:!bg-[#00F0FF]"
+                      />
+                      <span className="text-xs font-semibold text-gray-300 uppercase tracking-widest font-display">
+                        Video Fades
+                      </span>
+                    </label>
+                  </div>
+                  <p className="text-[12px] text-gray-400">
+                    Apply a subtle fade-in and fade-out to the video.
+                  </p>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="text-xs font-semibold text-gray-300 uppercase tracking-widest font-display">
+                      Hook Style
+                    </span>
+                  </div>
+                  <select
+                    value={hookStyle}
+                    onChange={(e) => setHookStyle(e.target.value)}
+                    className="w-full bg-[rgba(0,0,0,0.3)] border border-[rgba(255,255,255,0.1)] rounded px-3 py-2 text-sm text-white font-display focus:border-[#00F0FF] focus:outline-none focus:ring-1 focus:ring-[#00F0FF] transition-all"
+                  >
+                    <option value="default">Default</option>
+                    <option value="mrbeast">MrBeast</option>
+                    <option value="neon_blue">Neon Blue</option>
+                    <option value="fire">Fire</option>
+                    <option value="toxic_green">Toxic Green</option>
+                    <option value="hot_pink">Hot Pink</option>
+                    <option value="purple_glow">Purple Glow</option>
+                    <option value="ice_white">Ice White</option>
+                    <option value="orange_pop">Orange Pop</option>
+                    <option value="yellow_stroke">Yellow Stroke</option>
+                    <option value="gold_luxury">Gold Luxury</option>
+                    <option value="white_box">White Box</option>
+                    <option value="dark_glass">Dark Glass</option>
+                    <option value="red_alert">Red Alert</option>
+                    <option value="cyan_glow">Cyan Glow</option>
+                  </select>
+                </div>
+
                 {/* Real-time Preview Box */}
                 <MockPreview
                   fontSize={fontSizeOn ? fontSize : 48}
@@ -1002,6 +1222,7 @@ function UploadPage() {
                   position={position}
                   template={templates.length > 0 ? templates[0] : "alex_hormozi"}
                   layout={layouts.length > 0 ? layouts[0] : "full_vertical"}
+                  hookStyle={hookStyle}
                 />
               </div>
             )}
@@ -1353,12 +1574,14 @@ function MockPreview({
   position,
   template,
   layout,
+  hookStyle,
 }: {
   fontSize: number;
   maxWords: number;
   position: string;
   template: string;
   layout: string;
+  hookStyle?: string;
 }) {
   const [activeIdx, setActiveIdx] = useState(0);
 
@@ -1602,9 +1825,107 @@ function MockPreview({
           </div>
         </>
       )}
-      {(layout === "full_vertical" || layout === "ishowspeed" || layout === "original") && (
+      {(layout === "full_vertical" || layout === "original") && (
         <div className="absolute inset-0 flex items-center justify-center opacity-20">
           <div className="w-24 h-48 bg-white rounded-[100%] blur-3xl" />
+        </div>
+      )}
+
+      {/* Hook Text Preview */}
+      {hookStyle && (
+        <div
+          className="absolute top-[10%] left-1/2 -translate-x-1/2 text-center whitespace-nowrap z-40 transition-all duration-300"
+          style={{
+            fontFamily: "Impact, sans-serif",
+            fontSize: `${Math.max(16, fontSize * 0.4)}px`,
+            fontWeight: "900",
+            textTransform: "uppercase",
+            ...(hookStyle === "default"
+              ? {
+                  color: "#FFFFFF",
+                  textShadow:
+                    "-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 4px 6px rgba(0,0,0,0.8)",
+                }
+              : {}),
+            ...(hookStyle === "mrbeast"
+              ? {
+                  color: "#FFFFFF",
+                  textShadow:
+                    "0px 0px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 4px 0px rgba(0,0,0,1)",
+                }
+              : {}),
+            ...(hookStyle === "neon_blue"
+              ? {
+                  color: "#FFFFFF",
+                  textShadow: "0 0 10px #00F0FF, 0 0 20px #00F0FF, 0 0 30px #00F0FF",
+                }
+              : {}),
+            ...(hookStyle === "fire"
+              ? { color: "#FF3300", textShadow: "0 2px 4px #000, 0 -2px 10px #FF9900" }
+              : {}),
+            ...(hookStyle === "toxic_green"
+              ? { color: "#39FF14", textShadow: "2px 2px 0 #000, 0 0 15px #39FF14" }
+              : {}),
+            ...(hookStyle === "hot_pink"
+              ? { color: "#FF1493", textShadow: "2px 2px 0 #000, 0 0 10px #FF69B4" }
+              : {}),
+            ...(hookStyle === "purple_glow"
+              ? { color: "#9D00FF", textShadow: "0 0 15px #9D00FF" }
+              : {}),
+            ...(hookStyle === "ice_white"
+              ? { color: "#FFFFFF", textShadow: "0 0 10px #AEEFFF, 2px 2px 4px #000" }
+              : {}),
+            ...(hookStyle === "orange_pop"
+              ? {
+                  color: "#FFA500",
+                  textShadow:
+                    "-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 4px 4px 0 #000",
+                }
+              : {}),
+            ...(hookStyle === "yellow_stroke"
+              ? {
+                  color: "#FFFF00",
+                  textShadow:
+                    "-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 4px 6px rgba(0,0,0,0.8)",
+                }
+              : {}),
+            ...(hookStyle === "gold_luxury"
+              ? { color: "#FFD700", textShadow: "0 2px 10px rgba(255,215,0,0.5), 2px 2px 2px #000" }
+              : {}),
+            ...(hookStyle === "white_box"
+              ? {
+                  color: "#000000",
+                  background: "#FFFFFF",
+                  padding: "4px 12px",
+                  borderRadius: "4px",
+                }
+              : {}),
+            ...(hookStyle === "dark_glass"
+              ? {
+                  color: "#FFFFFF",
+                  background: "rgba(0,0,0,0.5)",
+                  backdropFilter: "blur(4px)",
+                  padding: "4px 12px",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                }
+              : {}),
+            ...(hookStyle === "red_alert"
+              ? {
+                  color: "#FF0000",
+                  textShadow: "2px 2px 0 #000, 0 0 15px #FF0000",
+                  borderBottom: "4px solid #FF0000",
+                }
+              : {}),
+            ...(hookStyle === "cyan_glow"
+              ? {
+                  color: "#00FFFF",
+                  textShadow: "0 0 5px #00FFFF, 0 0 10px #00FFFF, 2px 2px 0 #000",
+                }
+              : {}),
+          }}
+        >
+          WAIT FOR IT 🤯
         </div>
       )}
 

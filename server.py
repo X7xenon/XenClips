@@ -39,7 +39,12 @@ class CaptionsUpdate(BaseModel):
 
 class GeminiSettingsUpdate(BaseModel):
     keys: list[str]
-    limit_per_key: int
+    limit_per_key: int = 50
+    model: str = "gemini-2.5-flash-lite"
+
+class AppSettingsUpdate(BaseModel):
+    whatsapp_enabled: bool
+    whatsapp_number: str
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("server")
@@ -100,6 +105,12 @@ async def startup_event():
     global log_queue
     log_queue = asyncio.Queue()
     asyncio.create_task(log_broadcaster())
+    
+    from backend.remote.tailscale import start_tailscale_poller
+    start_tailscale_poller()
+    import whatsapp_notifier
+    if whatsapp_notifier.get_settings().get("whatsapp_enabled"):
+        whatsapp_notifier.start_bridge()
 
 @app.websocket("/ws/logs")
 async def websocket_logs(websocket: WebSocket):
@@ -119,12 +130,15 @@ if os.path.exists(DB_PATH):
             _data = json.load(f)
             JOBS = _data.get("JOBS", {})
             CLIPS = _data.get("CLIPS", {})
+            PRESETS = _data.get("PRESETS", {})
     except Exception:
         JOBS: dict[str, dict] = {}
         CLIPS: dict[str, dict] = {}
+        PRESETS: dict[str, dict] = {}
 else:
     JOBS: dict[str, dict] = {}
     CLIPS: dict[str, dict] = {}
+    PRESETS: dict[str, dict] = {}
 
 def mark_unfinished_jobs_failed():
     changed = False
@@ -142,11 +156,11 @@ def mark_unfinished_jobs_failed():
 def save_db():
     try:
         with open(DB_PATH, "w", encoding="utf-8") as f:
-            json.dump({"JOBS": JOBS, "CLIPS": CLIPS}, f)
+            json.dump({"JOBS": JOBS, "CLIPS": CLIPS, "PRESETS": PRESETS}, f)
     except Exception:
         pass
 
-LayoutType = Literal["full_vertical", "vertical_no_tracking", "bw_letterbox", "blur_bg", "ishowspeed", "original"]
+LayoutType = Literal["full_vertical", "bw_letterbox", "blur_bg", "streamer", "original"]
 TemplateType = Literal[
     "alex_hormozi", "mrbeast", "iman_gadzhi", "ali_abdaal", "podcast",
     "gaming", "motivational", "minimal_clean", "tiktok_viral", "premium_cinematic",
@@ -163,13 +177,17 @@ class ProcessRequest(BaseModel):
     templates: list[TemplateType] = Field(default=["alex_hormozi", "mrbeast", "podcast"])
     position: PositionType = "bottom"
     max_words: int | None = Field(default=None, ge=1, le=10, description="Words shown on screen at once (caption line length). Default is template-specific.")
-    font_size: int | None = Field(default=None, ge=20, le=120, description="Caption font size override. Default is template-specific.")
+    font_size: int | None = Field(default=None, ge=20, le=150, description="Caption font size override. Default is template-specific.")
     target_duration: int | None = Field(default=None, description="Target clip length in seconds")
     num_clips: int = Field(default=6, ge=1, le=30, description="Number of clips to generate")
     generate_captions: bool = Field(default=True, description="Whether to generate and burn captions")
+    hook_style: str = Field(default="default", description="Global hook text style to apply")
+    clip_vibe: str = Field(default="viral", description="AI clip selection vibe")
+    hook_vibe: str = Field(default="clickbait", description="AI hook text vibe")
     sfx_enabled: bool = Field(default=True, description="Whether to add sound effects")
     sfx_volume: int = Field(default=100, ge=0, le=100, description="Master volume for SFX")
     sfx_pack: str = Field(default="default", description="Sound pack to use for SFX")
+    fade_enabled: bool = Field(default=True, description="Whether to add video fade in/out")
 
     @field_validator("layouts")
     @classmethod
@@ -193,6 +211,7 @@ class ProcessRequest(BaseModel):
 class ClipUpdate(BaseModel):
     layout: LayoutType | None = None
     hook_text: str | None = None
+    hook_style: str | None = None
     emoji: str | None = None
     position: PositionType | None = None
     font_size: int | None = None
@@ -208,7 +227,7 @@ def _set_status(job_id: str, step: str, progress: int, error: str | None = None)
 def _run(
     job_id: str, url: str, layouts: list[str], templates: list[str], position: str,
     max_words: int | None, font_size: int | None, target_duration: int | None, num_clips: int, generate_captions: bool,
-    sfx_enabled: bool, sfx_volume: int, sfx_pack: str,
+    hook_style: str, clip_vibe: str, hook_vibe: str, sfx_enabled: bool, sfx_volume: int, sfx_pack: str, fade_enabled: bool,
     watermark_options: dict | None = None,
 ) -> None:
     try:
@@ -220,9 +239,13 @@ def _run(
             max_words=max_words, font_size=font_size, target_duration=target_duration,
             num_clips=num_clips,
             generate_captions=generate_captions,
+            hook_style=hook_style,
+            clip_vibe=clip_vibe,
+            hook_vibe=hook_vibe,
             sfx_enabled=sfx_enabled,
             sfx_volume=sfx_volume,
             sfx_pack=sfx_pack,
+            fade_enabled=fade_enabled,
             watermark_options=watermark_options,
             progress_cb=progress_cb, do_cleanup=False,  # GUI needs raw clips preserved for re-render
         )
@@ -271,6 +294,13 @@ def _run(
         JOBS[job_id]["workspace"] = result["workspace"]
         _set_status(job_id, "Done", 100)
 
+        # Trigger WhatsApp notification if enabled
+        try:
+            import whatsapp_notifier
+            whatsapp_notifier.send_whatsapp_notification(f"✅ *XenClips Job Complete!*\n\nYour video '{JOBS[job_id].get('source_video', 'Unknown')}' has finished processing.\n{len(clip_ids)} clip variants are ready for review!")
+        except Exception as e:
+            logger.warning(f"Failed to send WhatsApp notification: {e}")
+
     except Exception as exc:  # noqa: BLE001
         logger.exception("Pipeline failed for job=%s", job_id)
         _set_status(job_id, "Failed", JOBS[job_id].get("progress", 0), error=str(exc))
@@ -289,9 +319,13 @@ async def process(request: Request, background_tasks: BackgroundTasks):
     target_duration = None
     num_clips = 6
     generate_captions = True
+    hook_style = "default"
+    clip_vibe = "viral"
+    hook_vibe = "clickbait"
     sfx_enabled = True
     sfx_volume = 100
     sfx_pack = "default"
+    fade_enabled = True
     
     body = None
     form = None
@@ -309,9 +343,13 @@ async def process(request: Request, background_tasks: BackgroundTasks):
             target_duration = req.target_duration
             num_clips = req.num_clips
             generate_captions = req.generate_captions
+            hook_style = req.hook_style
+            clip_vibe = req.clip_vibe
+            hook_vibe = req.hook_vibe
             sfx_enabled = req.sfx_enabled
             sfx_volume = req.sfx_volume
             sfx_pack = req.sfx_pack
+            fade_enabled = req.fade_enabled
         except Exception as e:
             logger.exception("Invalid JSON request to /process")
             raise HTTPException(400, f"Invalid JSON request: {e}")
@@ -359,6 +397,26 @@ async def process(request: Request, background_tasks: BackgroundTasks):
             sfx_pack_val = form.get("sfx_pack")
             if sfx_pack_val is not None:
                 sfx_pack = sfx_pack_val
+
+            generate_captions_val = form.get("generate_captions")
+            if generate_captions_val is not None:
+                generate_captions = generate_captions_val.lower() == "true"
+
+            fade_enabled_val = form.get("fade_enabled")
+            if fade_enabled_val is not None:
+                fade_enabled = fade_enabled_val.lower() == "true"
+                
+            hook_style_val = form.get("hook_style")
+            if hook_style_val is not None:
+                hook_style = hook_style_val
+                
+            clip_vibe_val = form.get("clip_vibe")
+            if clip_vibe_val is not None:
+                clip_vibe = clip_vibe_val
+                
+            hook_vibe_val = form.get("hook_vibe")
+            if hook_vibe_val is not None:
+                hook_vibe = hook_vibe_val
             
             # The uploaded file
             upload_file = form.get("file")
@@ -489,8 +547,10 @@ async def process(request: Request, background_tasks: BackgroundTasks):
     save_db()
     
     background_tasks.add_task(
-        _run, job_id, url, layouts, templates, position, max_words, font_size, target_duration, num_clips, generate_captions,
-        sfx_enabled, sfx_volume, sfx_pack, watermark_options
+        _run,
+        job_id, url, layouts, templates, position, max_words, font_size,
+        target_duration, num_clips, generate_captions, hook_style, clip_vibe, hook_vibe, sfx_enabled, sfx_volume, sfx_pack, fade_enabled,
+        watermark_options
     )
         
     return {"job_id": job_id, "layouts": layouts, "templates": templates}
@@ -537,6 +597,9 @@ def update_clip(clip_id: str, update: ClipUpdate):
 
     if update.hook_text is not None and update.hook_text != clip.get("hook_text"):
         clip["hook_text"] = update.hook_text
+        re_render = True
+    if update.hook_style is not None and update.hook_style != clip.get("hook_style"):
+        clip["hook_style"] = update.hook_style
         re_render = True
     if update.emoji is not None:
         clip["emoji"] = update.emoji
@@ -601,7 +664,8 @@ def update_clip(clip_id: str, update: ClipUpdate):
         try:
             render_raw_clip(
                 clip["raw_path"], clip["video_path"],
-                layout=clip["layout"], ass_path=clip.get("ass_path"), hook_text=clip.get("hook_text"),
+                layout=clip["layout"], ass_path=clip.get("ass_path"), 
+                hook_text=clip.get("hook_text"), hook_style=clip.get("hook_style", "default"),
             )
             clip["failed"] = False
         except Exception as exc:  # noqa: BLE001
@@ -752,7 +816,8 @@ def export_clip(clip_id: str):
     try:
         render_raw_clip(
             clip["raw_path"], clip["video_path"],
-            layout=clip["layout"], ass_path=clip.get("ass_path"), hook_text=clip.get("hook_text"),
+            layout=clip["layout"], ass_path=clip.get("ass_path"), 
+            hook_text=clip.get("hook_text"), hook_style=clip.get("hook_style", "default"),
         )
         clip["failed"] = False
     except Exception as exc:  # noqa: BLE001
@@ -822,8 +887,57 @@ def get_gemini_settings():
 @app.post("/gemini-settings")
 def update_gemini_settings(update: GeminiSettingsUpdate):
     import gemini_usage
-    gemini_usage.set_keys_settings(update.keys, update.limit_per_key)
+    gemini_usage.set_keys_settings(update.keys, update.limit_per_key, update.model)
     return {"status": "ok"}
+
+@app.get("/app-settings")
+def get_app_settings():
+    import whatsapp_notifier
+    return whatsapp_notifier.get_settings()
+
+@app.post("/app-settings")
+def update_app_settings(update: AppSettingsUpdate):
+    import whatsapp_notifier
+    whatsapp_notifier.save_settings({
+        "whatsapp_enabled": update.whatsapp_enabled,
+        "whatsapp_number": update.whatsapp_number
+    })
+    if update.whatsapp_enabled:
+        whatsapp_notifier.start_bridge()
+    else:
+        whatsapp_notifier.stop_bridge()
+    return {"status": "ok"}
+
+@app.get("/whatsapp/status")
+def get_whatsapp_status():
+    import requests
+    try:
+        res = requests.get("http://localhost:3001/status", timeout=5)
+        res.raise_for_status()
+        return res.json()
+    except Exception as e:
+        logger.error(f"WhatsApp status error: {e}")
+        return {"connected": False, "error": str(e)}
+
+@app.get("/whatsapp/qr")
+def get_whatsapp_qr():
+    import requests
+    try:
+        res = requests.get("http://localhost:3001/qr", timeout=15)
+        res.raise_for_status()
+        return res.json()
+    except Exception as e:
+        logger.error(f"WhatsApp QR error: {e}")
+        return {"connected": False, "qr": None, "error": str(e)}
+
+@app.post("/whatsapp/test")
+def test_whatsapp():
+    import whatsapp_notifier
+    success = whatsapp_notifier.send_whatsapp_notification("🤖 Hello! This is a test message from XenClips to verify your WhatsApp authentication.")
+    if success:
+        return {"status": "ok"}
+    else:
+        raise HTTPException(500, "Failed to send test message. Make sure the number is configured and the bridge is connected.")
 
 @app.get("/jobs")
 def get_jobs():
@@ -844,4 +958,44 @@ def delete_job(job_id: str):
         save_db()
         return {"status": "ok"}
     raise HTTPException(status_code=404, detail="Job not found")
+
+class PresetUpdate(BaseModel):
+    preset_id: str
+    data: dict
+
+@app.get("/presets")
+def get_presets():
+    return PRESETS
+
+@app.post("/presets")
+def save_preset(update: PresetUpdate):
+    PRESETS[update.preset_id] = update.data
+    save_db()
+    return {"status": "ok"}
+
+@app.delete("/presets/{preset_id}")
+def delete_preset(preset_id: str):
+    if preset_id in PRESETS:
+        del PRESETS[preset_id]
+        save_db()
+        return {"status": "ok"}
+    raise HTTPException(status_code=404, detail="Preset not found")
+
+@app.post("/shutdown")
+def shutdown_app():
+    import subprocess
+    import threading
+    def _kill():
+        import time
+        time.sleep(1)
+        # Kill the windows by their specific titles
+        subprocess.run('taskkill /FI "WINDOWTITLE eq Xenclips Frontend*" /T /F', shell=True)
+        subprocess.run('taskkill /FI "WINDOWTITLE eq WhatsApp Bridge*" /T /F', shell=True)
+        subprocess.run('taskkill /FI "WINDOWTITLE eq Xenclips Backend*" /T /F', shell=True)
+    
+    threading.Thread(target=_kill).start()
+    return {"status": "Shutting down"}
+
+from backend.remote.service import router as remote_router
+app.include_router(remote_router, prefix="/api/remote", tags=["remote"])
 
