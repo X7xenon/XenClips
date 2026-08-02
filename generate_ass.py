@@ -254,7 +254,7 @@ def _style_line(cfg, position, font_size_override=None):
     return (
         f"Style: Default,{cfg['font']},{size},{primary},&H000000FF,{outline_color},{back},"
         f"{cfg['bold']},0,0,0,100,100,0,0,{border_style},{cfg['outline']},{cfg['shadow']},"
-        f"{_alignment_for(position)},10,10,{_margin_v_for(position, 320)},1"
+        f"{_alignment_for(position)},60,60,{_margin_v_for(position, 320)},1"
     )
 
 
@@ -263,7 +263,7 @@ Title: Clip Subtitles
 ScriptType: v4.00+
 PlayResX: 1080
 PlayResY: 1920
-WrapStyle: 2
+WrapStyle: 1
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
@@ -321,7 +321,7 @@ def _build_phrase_mode(transcript, start, end, cfg, words_override=None, max_wor
     anim_tag = ANIMATIONS.get(cfg["animation"], "")
     lines = []
 
-    for chunk in _group_words(words, max_words=max_words, max_chars=max_words * 7):
+    for chunk in _group_words(words, max_words=max_words, max_chars=min(35, max_words * 7)):
         chunk_texts = [w["text"].strip().upper() if cfg["uppercase"] else w["text"].strip() for w in chunk]
         chunk_start, _ = shift_to_clip_relative(chunk[0], start, end)
         _, chunk_end = shift_to_clip_relative(chunk[-1], start, end)

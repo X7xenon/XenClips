@@ -77,6 +77,7 @@ function ClipEditor() {
   const [error, setError] = useState<string | null>(null);
   const [layout, setLayout] = useState<LayoutTemplate>("full_vertical");
   const [hookText, setHookText] = useState("");
+  const [hookStyle, setHookStyle] = useState("default");
   const [emoji, setEmoji] = useState("🔥");
   const [platform, setPlatform] = useState<Platform>("reels");
   const [fontSize, setFontSize] = useState(90);
@@ -128,6 +129,7 @@ function ClipEditor() {
         setClip(c);
         setLayout(c.layout || "full_vertical");
         setHookText(c.hook_text || "");
+        setHookStyle(c.hook_style || "default");
         setEmoji(c.emoji || "🔥");
         setFontSize(c.font_size || 90);
         setCaptionPos(c.position || "bottom");
@@ -171,6 +173,7 @@ function ClipEditor() {
     try {
       const updated = await api.updateClip(clip.clip_id, {
         hook_text: hookText,
+        hook_style: hookStyle,
         emoji,
         font_size: fontSize,
         position: captionPos,
@@ -193,6 +196,7 @@ function ClipEditor() {
       if (dirty) {
         await api.updateClip(clip.clip_id, {
           hook_text: hookText,
+          hook_style: hookStyle,
           emoji,
           font_size: fontSize,
           position: captionPos,
@@ -503,7 +507,33 @@ function ClipEditor() {
 
             <div className="space-y-6">
               <div>
-                <div className="label-section mb-3">Hook Headline</div>
+                <div className="label-section mb-3 flex items-center justify-between">
+                  <span>Hook Headline</span>
+                  <select
+                    value={hookStyle}
+                    onChange={(e) => {
+                      setHookStyle(e.target.value);
+                      setDirty(true);
+                    }}
+                    className="bg-black/50 border border-white/10 rounded px-2 py-1 text-xs text-white"
+                  >
+                    <option value="default">Default (White/Black Border)</option>
+                    <option value="mrbeast">MrBeast (Yellow/Black Border)</option>
+                    <option value="neon_blue">Neon Blue Glow</option>
+                    <option value="fire">Fire (Gold/Red)</option>
+                    <option value="toxic_green">Toxic Green</option>
+                    <option value="hot_pink">Hot Pink</option>
+                    <option value="purple_glow">Purple Glow</option>
+                    <option value="ice_white">Ice White</option>
+                    <option value="orange_pop">Orange Pop</option>
+                    <option value="yellow_stroke">Yellow Stroke</option>
+                    <option value="gold_luxury">Gold Luxury (Boxed)</option>
+                    <option value="white_box">White Box (Dark Text)</option>
+                    <option value="dark_glass">Dark Glass (Boxed)</option>
+                    <option value="red_alert">Red Alert (Boxed)</option>
+                    <option value="cyan_glow">Cyan Glow (Boxed)</option>
+                  </select>
+                </div>
                 <textarea
                   value={hookText}
                   onChange={(e) => {
@@ -872,7 +902,8 @@ function CaptionPreview({
     containerStyle.width = "auto";
   } else if (template === "blueprint") {
     containerStyle.background = "#0d47a1";
-    containerStyle.backgroundImage = "linear-gradient(#1565c0 1px, transparent 1px), linear-gradient(90deg, #1565c0 1px, transparent 1px)";
+    containerStyle.backgroundImage =
+      "linear-gradient(#1565c0 1px, transparent 1px), linear-gradient(90deg, #1565c0 1px, transparent 1px)";
     containerStyle.backgroundSize = "20px 20px";
     containerStyle.padding = "12px 24px";
     containerStyle.border = "2px solid #64b5f6";
@@ -896,7 +927,13 @@ function CaptionPreview({
 
   // Helper for text shadow based on template
   const getTextShadow = (isActive: boolean) => {
-    if (template === "minimal_clean" || template === "typewriter" || template === "blueprint" || template === "old_newspaper") return "none";
+    if (
+      template === "minimal_clean" ||
+      template === "typewriter" ||
+      template === "blueprint" ||
+      template === "old_newspaper"
+    )
+      return "none";
     if (template === "mrbeast")
       return "0px 0px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 6px 0px rgba(0,0,0,1)";
     if (template === "comic_book")
@@ -905,14 +942,10 @@ function CaptionPreview({
       return "-3px -3px 0 #000, 3px -3px 0 #000, -3px 3px 0 #000, 3px 3px 0 #000";
     if (template === "street_graffiti")
       return "-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 2px 2px 5px rgba(255,0,85,0.8)";
-    if (template === "luxury_marble")
-      return "1px 1px 2px rgba(0,0,0,0.5)";
-    if (template === "liquid_glass")
-      return "0 2px 10px rgba(255,255,255,0.5)";
-    if (template === "holographic")
-      return "0 0 5px #00FFFF, 0 0 10px #FF00FF, 0 0 20px #FF00FF";
-    if (template === "blueprint_hud")
-      return "0 0 5px #00FFFF, 0 0 10px #00FFFF";
+    if (template === "luxury_marble") return "1px 1px 2px rgba(0,0,0,0.5)";
+    if (template === "liquid_glass") return "0 2px 10px rgba(255,255,255,0.5)";
+    if (template === "holographic") return "0 0 5px #00FFFF, 0 0 10px #FF00FF, 0 0 20px #FF00FF";
+    if (template === "blueprint_hud") return "0 0 5px #00FFFF, 0 0 10px #00FFFF";
     if (template === "gaming")
       return isActive ? "0 0 10px #FF00FF, 0 0 20px #FF00FF" : "0 0 10px #00FFFF";
     if (template === "cyberpunk")
@@ -971,7 +1004,8 @@ function CaptionPreview({
       if (text.length >= 7) return activeColor;
       return "#FFFFFF";
     }
-    if (template === "minimal_clean" || template === "typewriter" || template === "comic_manga") return "#FFFFFF";
+    if (template === "minimal_clean" || template === "typewriter" || template === "comic_manga")
+      return "#FFFFFF";
     if (template === "old_newspaper") return "#000000";
     return activeColor;
   };

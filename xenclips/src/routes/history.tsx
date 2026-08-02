@@ -1,6 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { History as HistoryIcon, Play, AlertTriangle, Trash2, Copy, ExternalLink, RotateCcw } from "lucide-react";
+import {
+  History as HistoryIcon,
+  Play,
+  AlertTriangle,
+  Trash2,
+  Copy,
+  ExternalLink,
+  RotateCcw,
+} from "lucide-react";
 import { api, type JobStatus } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -80,7 +88,9 @@ function HistoryPage() {
             <h1 className="font-display text-[2.5rem] font-bold tracking-tight text-white leading-none">
               Creation <span className="text-gradient">History</span>
             </h1>
-            <p className="text-gray-400 mt-2 font-medium">Timeline of all projects and clips generated.</p>
+            <p className="text-gray-400 mt-2 font-medium">
+              Timeline of all projects and clips generated.
+            </p>
           </div>
         </div>
 
@@ -100,15 +110,20 @@ function HistoryPage() {
           <div className="flex flex-col items-center justify-center py-20 text-gray-500">
             <HistoryIcon className="w-12 h-12 mb-4 opacity-20" />
             <p className="text-lg font-medium">No projects created yet.</p>
-            <Link to="/" className="mt-4 text-[#00F0FF] hover:underline">Start a new project</Link>
+            <Link to="/" className="mt-4 text-[#00F0FF] hover:underline">
+              Start a new project
+            </Link>
           </div>
         ) : (
           <div className="space-y-4">
             {jobs.map((job) => (
-              <div key={job.job_id} className="glass-panel p-6 rounded-2xl flex flex-col md:flex-row gap-6 relative overflow-hidden group hover:border-white/20 transition-all">
+              <div
+                key={job.job_id}
+                className="glass-panel p-6 rounded-2xl flex flex-col md:flex-row gap-6 relative overflow-hidden group hover:border-white/20 transition-all"
+              >
                 {/* Decorative Side Gradient */}
                 <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-[#00F0FF] to-[#8A2BE2] opacity-50" />
-                
+
                 <div className="flex-1">
                   <div className="flex justify-between items-start mb-4">
                     <div>
@@ -116,17 +131,26 @@ function HistoryPage() {
                         {job.project_name || `Project ${job.job_id.substring(0, 6).toUpperCase()}`}
                       </h2>
                       <div className="text-xs text-gray-400 flex items-center gap-3">
-                        <span>{job.creation_date ? new Date(job.creation_date).toLocaleString() : 'Unknown Date'}</span>
+                        <span>
+                          {job.creation_date
+                            ? new Date(job.creation_date).toLocaleString()
+                            : "Unknown Date"}
+                        </span>
                         <span>•</span>
-                        <span className={cn(
-                          job.step === "Done" ? "text-green-400" :
-                          job.error ? "text-red-400" : "text-yellow-400"
-                        )}>
-                          {job.error ? 'Failed' : job.step === "Done" ? 'Completed' : 'Processing'}
+                        <span
+                          className={cn(
+                            job.step === "Done"
+                              ? "text-green-400"
+                              : job.error
+                                ? "text-red-400"
+                                : "text-yellow-400",
+                          )}
+                        >
+                          {job.error ? "Failed" : job.step === "Done" ? "Completed" : "Processing"}
                         </span>
                       </div>
                     </div>
-                    
+
                     <div className="flex gap-2">
                       <Link
                         to={`/clips`}
@@ -139,10 +163,17 @@ function HistoryPage() {
                       >
                         <ExternalLink className="w-4 h-4" />
                       </Link>
-                      <button className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white transition-colors" title="Duplicate">
+                      <button
+                        className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white transition-colors"
+                        title="Duplicate"
+                      >
                         <Copy className="w-4 h-4" />
                       </button>
-                      <button onClick={() => deleteJob(job.job_id)} className="p-2 rounded-lg bg-white/5 hover:bg-red-500/20 hover:text-red-400 text-white transition-colors" title="Delete">
+                      <button
+                        onClick={() => deleteJob(job.job_id)}
+                        className="p-2 rounded-lg bg-white/5 hover:bg-red-500/20 hover:text-red-400 text-white transition-colors"
+                        title="Delete"
+                      >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -150,28 +181,35 @@ function HistoryPage() {
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     <div className="bg-black/20 p-3 rounded-lg border border-white/5">
-                      <div className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-1">Source Video</div>
-                      <div className="text-sm text-gray-300 truncate" title={job.source_video || 'N/A'}>
-                        {job.source_video || 'N/A'}
+                      <div className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-1">
+                        Source Video
+                      </div>
+                      <div
+                        className="text-sm text-gray-300 truncate"
+                        title={job.source_video || "N/A"}
+                      >
+                        {job.source_video || "N/A"}
                       </div>
                     </div>
                     <div className="bg-black/20 p-3 rounded-lg border border-white/5">
-                      <div className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-1">Duration</div>
+                      <div className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-1">
+                        Duration
+                      </div>
                       <div className="text-sm text-gray-300">
-                        {job.duration ? formatDuration(job.duration) : 'Auto'}
+                        {job.duration ? formatDuration(job.duration) : "Auto"}
                       </div>
                     </div>
                     <div className="bg-black/20 p-3 rounded-lg border border-white/5">
-                      <div className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-1">Export Res</div>
-                      <div className="text-sm text-gray-300">
-                        {job.resolution || '1080x1920'}
+                      <div className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-1">
+                        Export Res
                       </div>
+                      <div className="text-sm text-gray-300">{job.resolution || "1080x1920"}</div>
                     </div>
                     <div className="bg-black/20 p-3 rounded-lg border border-white/5">
-                      <div className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-1">Clips Generated</div>
-                      <div className="text-sm text-gray-300">
-                        {job.clip_count}
+                      <div className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-1">
+                        Clips Generated
                       </div>
+                      <div className="text-sm text-gray-300">{job.clip_count}</div>
                     </div>
                   </div>
 

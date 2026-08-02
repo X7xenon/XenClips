@@ -130,6 +130,36 @@ export function ClipSettingsForm({
         </Field>
       )}
 
+      {showHookText && value.hook_text_enabled && (
+        <Field label="Hook Style" className="w-48">
+          <Select
+            value={value.hook_style || "default"}
+            onValueChange={(val) => onChange({ hook_style: val })}
+          >
+            <SelectTrigger className="h-9 text-xs">
+              <SelectValue placeholder="Style" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default">Default</SelectItem>
+              <SelectItem value="mrbeast">MrBeast</SelectItem>
+              <SelectItem value="neon_blue">Neon Blue</SelectItem>
+              <SelectItem value="fire">Fire</SelectItem>
+              <SelectItem value="toxic_green">Toxic Green</SelectItem>
+              <SelectItem value="hot_pink">Hot Pink</SelectItem>
+              <SelectItem value="purple_glow">Purple Glow</SelectItem>
+              <SelectItem value="ice_white">Ice White</SelectItem>
+              <SelectItem value="orange_pop">Orange Pop</SelectItem>
+              <SelectItem value="yellow_stroke">Yellow Stroke</SelectItem>
+              <SelectItem value="gold_luxury">Gold Luxury</SelectItem>
+              <SelectItem value="white_box">White Box</SelectItem>
+              <SelectItem value="dark_glass">Dark Glass</SelectItem>
+              <SelectItem value="red_alert">Red Alert</SelectItem>
+              <SelectItem value="cyan_glow">Cyan Glow</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+      )}
+
       <Field label="Fade In/Out" className="w-40">
         <div className="flex h-9 items-center gap-2">
           <Switch

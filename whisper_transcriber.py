@@ -16,8 +16,6 @@ X:\\Millionaire\\Shorts_automation\\English\\model
 from __future__ import annotations
 
 import os
-import re
-import unicodedata
 from typing import Optional
 
 from faster_whisper import WhisperModel
@@ -362,9 +360,9 @@ def transcribe_clips_batch(
     results = {}
     total = len(clip_paths)
 
-    print(f"\n==============================")
+    print("\n==============================")
     print(f"Transcribing {total} clip(s)  (beam_size={beam_size}, {COMPUTE_TYPE})")
-    print(f"==============================\n")
+    print("==============================\n")
 
     for i, clip in enumerate(clip_paths, start=1):
         print(f"🎙  [{i}/{total}] {os.path.basename(clip)}")
@@ -384,7 +382,7 @@ if __name__ == "__main__":
 
     print("\nLanguage")
     print("---------------")
-    print(f"Default is auto-detect (outputs in detected language, then transliterates to Roman).")
+    print("Default is auto-detect (outputs in detected language, then transliterates to Roman).")
     print("Press Enter to use the default. Override if needed:")
     print("  en   -> Force English (may translate Hindi to English — NOT recommended)")
     print("  hi   -> Force Hindi (outputs Devanagari, auto-transliterated to Roman)\n")

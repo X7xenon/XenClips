@@ -49,9 +49,13 @@ def run_pipeline(
     target_duration: int | None = None, # target clip length override
     num_clips: int = 6, # number of clips to generate
     generate_captions: bool = True,
+    hook_style: str = "default",
     sfx_enabled: bool = True,
     sfx_volume: int = 100,
     sfx_pack: str = "default",
+    fade_enabled: bool = True,
+    clip_vibe: str = "viral",
+    hook_vibe: str = "clickbait",
     watermark_options: dict | None = None,
     do_cleanup: bool = True,
     progress_cb=None,  # optional callable(step: str, progress: int) — for server.py status polling
@@ -111,41 +115,96 @@ def run_pipeline(
             clips = json.load(f)["clips"]
     else:
         _status("Finding Viral Moments...", 15)
-        clips = generate_viral_clips(transcript_path, target_duration=target_duration, num_clips=num_clips)
+        clips = generate_viral_clips(transcript_path, target_duration=target_duration, num_clips=num_clips, clip_vibe=clip_vibe, hook_vibe=hook_vibe)
         clips_json_path = save_clips(clips, workspace)
 
     # --------------------------
     # STEP 4: RAW CUT (fast, no captions/layout yet)
+    # — skip individual clips that are already cut
     # --------------------------
-    _status("Cutting Raw Clips", 35)
-    raw_clip_records = cut_all_raw_clips(video_path, clips_json_path, workspace)
+    import json as _json
+    temp_dir = os.path.join(workspace, "temp")
+    clips_data = _json.load(open(clips_json_path, encoding="utf-8"))
+    all_clips = clips_data.get("clips", [])
+    total_clips = len(all_clips)
 
-    valid_records = [r for r in raw_clip_records if r.get("raw_path")]
+    # Check if every raw clip file already exists
+    existing_raws = all(
+        os.path.exists(os.path.join(temp_dir, f"raw_{i}.mp4"))
+        for i in range(1, total_clips + 1)
+    )
+
+    if existing_raws:
+        _status("Raw clips already exist (skipping cutting)", 35)
+        raw_clip_records = []
+        for i, clip in enumerate(all_clips, start=1):
+            entry = dict(clip)
+            entry["clip_number"] = i
+            entry["raw_path"] = os.path.join(temp_dir, f"raw_{i}.mp4")
+            raw_clip_records.append(entry)
+    else:
+        _status("Cutting Raw Clips", 35)
+        raw_clip_records = cut_all_raw_clips(video_path, clips_json_path, workspace)
+
+    valid_records = [r for r in raw_clip_records if r.get("raw_path") and os.path.exists(r["raw_path"])]
     if not valid_records:
         raise RuntimeError("No raw clips were successfully cut — check clip_cutter output above")
+
+    for r in valid_records:
+        r["hook_style"] = r.get("hook_style", hook_style)
 
 
 
     # --------------------------
     # STEP 5: WHISPER TRANSCRIPTION (real word-level, per clip)
+    # — skip clips whose words.json is already cached in clips/
+    # — skip entirely if captions are disabled
     # --------------------------
+    clips_dir_check = os.path.join(workspace, "clips")
     words_by_clip_number = {}
+
     if generate_captions:
-        _status("Transcribing Clips (Whisper)", 45)
-        raw_paths = [r["raw_path"] for r in valid_records]
-        words_by_path = transcribe_clips_batch(raw_paths)  # {raw_path: [words...]}
+        # Partition clips into cached vs needs-transcription
+        cached_records = []
+        needs_transcription = []
+        for r in valid_records:
+            words_json = os.path.join(clips_dir_check, f"clip_{r['clip_number']}__words.json")
+            if os.path.exists(words_json):
+                cached_records.append((r, words_json))
+            else:
+                needs_transcription.append(r)
 
-        # --------------------------
-        # STEP 6: HINGLISH CORRECTION (only where detected as Hinglish)
-        # --------------------------
-        _status("Correcting Hinglish Captions", 55)
-        corrected_by_path = correct_clips_batch(words_by_path)  # {raw_path: [words...]}
+        # Load cached words
+        for r, words_json in cached_records:
+            try:
+                import json as _j
+                with open(words_json, encoding="utf-8") as f:
+                    words_by_clip_number[r["clip_number"]] = _j.load(f)
+            except Exception as e:
+                print(f"Warning: could not load cached words for clip {r['clip_number']}: {e}")
+                needs_transcription.append(r)  # fallback: re-transcribe
 
-        words_by_clip_number = {
-            r["clip_number"]: corrected_by_path.get(r["raw_path"], [])
-            for r in valid_records
-        }
+        if cached_records and not needs_transcription:
+            _status("Whisper transcription already cached (skipping)", 55)
+        elif needs_transcription:
+            if cached_records:
+                _status(f"Transcribing {len(needs_transcription)} new clip(s) (Whisper)", 45)
+            else:
+                _status("Transcribing Clips (Whisper)", 45)
+
+            raw_paths = [r["raw_path"] for r in needs_transcription]
+            words_by_path = transcribe_clips_batch(raw_paths)  # {raw_path: [words...]}
+
+            # --------------------------
+            # STEP 6: HINGLISH CORRECTION (only where detected as Hinglish)
+            # --------------------------
+            _status("Correcting Hinglish Captions", 55)
+            corrected_by_path = correct_clips_batch(words_by_path)  # {raw_path: [words...]}
+
+            for r in needs_transcription:
+                words_by_clip_number[r["clip_number"]] = corrected_by_path.get(r["raw_path"], [])
     else:
+        _status("Captions disabled — skipping Whisper & subtitle generation", 50)
         words_by_clip_number = {r["clip_number"]: [] for r in valid_records}
 
     # --------------------------
@@ -198,7 +257,7 @@ def run_pipeline(
     # --------------------------
     # STEP 8: RENDER (layout crop + caption burn, per clip per layout per template)
     # --------------------------
-    any_yolo_layout = any(l in ("full_vertical", "ishowspeed") for l in layouts)
+    any_yolo_layout = any(l == "full_vertical" for l in layouts)
     _status(
         "Rendering Clips (smart crop — slow on CPU)" if any_yolo_layout else "Rendering Clips",
         80,
@@ -211,6 +270,8 @@ def run_pipeline(
         layouts=layouts,
         position=position,
         sfx_volume=sfx_volume if sfx_enabled else 0,
+        fade_in=0.3 if fade_enabled else 0,
+        fade_out=0.3 if fade_enabled else 0,
     )
 
     # --------------------------

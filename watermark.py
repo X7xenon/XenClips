@@ -36,7 +36,7 @@ def apply_watermark(input_mp4: str, output_mp4: str, options: dict) -> bool:
     elif pos == "bottom_left":
         overlay_pos = f"{margin}:main_h-overlay_h-{margin}"
     elif pos == "center":
-        overlay_pos = f"(main_w-overlay_w)/2:(main_h-overlay_h)/2"
+        overlay_pos = "(main_w-overlay_w)/2:(main_h-overlay_h)/2"
     else: # bottom_right
         overlay_pos = f"main_w-overlay_w-{margin}:main_h-overlay_h-{margin}"
         
@@ -71,7 +71,6 @@ def apply_watermark(input_mp4: str, output_mp4: str, options: dict) -> bool:
         # Use drawtext
         # drawtext doesn't support opacity easily without color=white@0.5
         # We'll map opacity 0-100 to hex 00-FF
-        alpha_hex = hex(int(opacity * 255))[2:].upper().zfill(2)
         fontcolor = f"white@{opacity}"
         
         # Position mapping for drawtext
@@ -82,7 +81,7 @@ def apply_watermark(input_mp4: str, output_mp4: str, options: dict) -> bool:
         elif pos == "bottom_left":
             dt_pos = f"x={margin}:y=h-th-{margin}"
         elif pos == "center":
-            dt_pos = f"x=(w-tw)/2:y=(h-th)/2"
+            dt_pos = "x=(w-tw)/2:y=(h-th)/2"
         else: # bottom_right
             dt_pos = f"x=w-tw-{margin}:y=h-th-{margin}"
             

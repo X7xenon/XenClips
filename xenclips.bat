@@ -1,14 +1,7 @@
 @echo off
-echo =========================================
-echo Starting Xenclips Backend and Frontend...
-echo =========================================
-
-:: Start the Python backend in a new command window
-echo Starting FastAPI Backend (uvicorn)...
-start "Xenclips Backend" cmd /k "cd /d X:\Millionaire\Shorts_automation_v2 && uvicorn server:app --reload --port 8000"
-
-:: Start the frontend in a new command window
-echo Starting Frontend (bun dev)...
-start "Xenclips Frontend" cmd /k "cd /d X:\Millionaire\Shorts_automation_v2\xenclips && npm run dev"
-
-echo Done! Both servers are starting in new windows.
+if not DEFINED IS_MINIMIZED set IS_MINIMIZED=1 && start "" /min "%~dpnx0" %* && exit
+start /min "Xenclips Backend" cmd /c "cd /d X:\Millionaire\Xenclips_v0.7 && uvicorn server:app --reload --host 0.0.0.0 --port 8000"
+start /min "Xenclips Frontend" cmd /c "cd /d X:\Millionaire\Xenclips_v0.7\xenclips && npm run dev -- --host"
+timeout /t 3 /nobreak > nul
+start http://localhost:8080
+exit

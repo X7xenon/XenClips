@@ -177,10 +177,7 @@ export const usePublishStore = create<PublishState>()(
 
       addHistoryItem: (item) =>
         set((state) => ({
-          history: [
-            { ...item, id: generateId(), date: Date.now() },
-            ...state.history,
-          ],
+          history: [{ ...item, id: generateId(), date: Date.now() }, ...state.history],
         })),
       clearHistory: () => set({ history: [] }),
     }),

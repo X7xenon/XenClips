@@ -48,14 +48,14 @@ export function useShortcuts() {
     (e: KeyboardEvent, action: keyof ShortcutConfig) => {
       const key = shortcuts[action].toLowerCase();
       const pressedKey = e.key.toLowerCase();
-      
-      // We assume all shortcuts require Ctrl or Meta (Cmd) for safety, 
+
+      // We assume all shortcuts require Ctrl or Meta (Cmd) for safety,
       // except maybe "Enter" which we might allow as Ctrl+Enter.
       if (!(e.ctrlKey || e.metaKey)) return false;
-      
+
       return pressedKey === key;
     },
-    [shortcuts]
+    [shortcuts],
   );
 
   return { shortcuts, setShortcuts: saveShortcuts, matchesShortcut };

@@ -93,9 +93,9 @@ const OPTIONS: {
     ),
   },
   {
-    key: "ishowspeed",
-    label: "Speed Run",
-    hint: "Full-bleed 9:16, no bars",
+    key: "streamer",
+    label: "Streamer",
+    hint: "9:16 padded with white canvas",
     aspect: "vertical",
     thumb: (
       <div
@@ -103,33 +103,20 @@ const OPTIONS: {
           position: "relative",
           height: "100%",
           width: "100%",
-          background: "linear-gradient(160deg, #0f0f1a 0%, #1a1a1a 100%)",
+          background: "#ffffff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
         <div
           style={{
-            position: "absolute",
-            inset: 0,
+            width: "100%",
+            height: "56.25%", // 16:9 aspect inside 9:16 wrapper
             background:
-              "linear-gradient(135deg, rgba(138,43,226,0.4) 0%, rgba(0,240,255,0.3) 100%)",
-            mixBlendMode: "overlay",
+              "linear-gradient(135deg, rgba(138,43,226,0.8) 0%, rgba(0,240,255,0.8) 100%)",
           }}
         />
-        {[...Array(9)].map((_, i) => (
-          <div
-            key={i}
-            style={{
-              position: "absolute",
-              width: 3,
-              height: 3,
-              borderRadius: "50%",
-              background: "rgba(255,255,255,0.4)",
-              left: `${20 + (i % 3) * 30}%`,
-              top: `${50 + Math.floor(i / 3) * 20}%`,
-              boxShadow: "0 0 4px rgba(255,255,255,0.8)",
-            }}
-          />
-        ))}
       </div>
     ),
   },

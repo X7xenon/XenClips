@@ -107,8 +107,8 @@ def download_video(url):
     for f in os.listdir(TEMP_DIR):
         try:
             os.remove(os.path.join(TEMP_DIR, f))
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Warning: Could not remove old temp file {f}: {e}")
 
     output_template = os.path.join(
         TEMP_DIR,

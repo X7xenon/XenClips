@@ -12,7 +12,7 @@ const LAYOUT_LABELS: Record<string, string> = {
   full_vertical: "Vertical AI",
   bw_letterbox: "Cinematic",
   blur_bg: "Aura Blur",
-  ishowspeed: "Speed Run",
+  streamer: "Streamer",
   original: "Raw Format",
 };
 const TEMPLATE_LABELS: Record<string, string> = {

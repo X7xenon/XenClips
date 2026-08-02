@@ -89,8 +89,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content: "Self-hosted local dashboard for AI-powered short-form video clipping.",
       },
       { property: "og:type", content: "website" },
+      { name: "theme-color", content: "#00F0FF" },
     ],
     links: [
+      { rel: "manifest", href: "/manifest.json" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {

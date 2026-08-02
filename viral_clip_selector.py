@@ -15,7 +15,7 @@ load_dotenv()
 
 import gemini_usage
 
-MODEL = "gemini-2.5-flash"
+# MODEL = "gemini-2.5-flash" (Now managed dynamically via gemini_usage)
 
 
 # ==========================
@@ -47,7 +47,7 @@ def transcript_to_text(transcript):
 # PROMPT
 # ==========================
 
-def build_prompt(text, target_duration=None, num_clips=6):
+def build_prompt(text, target_duration=None, num_clips=6, clip_vibe="viral", hook_vibe="clickbait"):
     duration_rule = ""
     if target_duration:
         duration_rule = f"- Each clip should be close to {target_duration} seconds (±10s tolerance)\n"
@@ -70,14 +70,30 @@ Rules:
 - Focus ONLY on elite, high-retention moments that will hook viewers in the first 3 seconds and keep them watching until the end.
 - Classify each clip's segment type: "viral" (default), "qa" (clear question+answer), "chapter_boundary" (topic shift), "product_mention" (brand/product named)
 
-Prioritize (in order of viral potential):
-- Shocking moments / plot twists / unexpected reveals
-- Highly emotional statements / raw vulnerability / anger
-- Story climaxes / hard-hitting punchlines
-- Intense motivational peaks
-- Extreme controversy / hot takes / bold opinions
-- Highly interesting facts / counter-intuitive knowledge
-- Strong hooks / massive attention grabbers
+Prioritize (in order of viral potential) based on the "{clip_vibe}" vibe:
+- If "funny": Look for jokes, humorous situations, hilarious reactions, and comedic timing.
+- If "serious": Look for deep insights, intense discussions, emotional vulnerability, and raw truth.
+- If "aura farm": Look for extreme hype, sigma male energy, undeniable confidence, and epic flexes.
+- If "educational": Look for valuable facts, step-by-step tutorials, mind-blowing knowledge, and practical advice.
+- Otherwise (viral): Look for shocking moments, plot twists, intense motivational peaks, and massive attention grabbers.
+
+When generating "hook_text", adapt the tone to be "{hook_vibe}". ALWAYS include a highly engaging emoji (or two) relevant to the topic (e.g., "Wait for it 🤯").
+Here are 15 hook text templates to draw inspiration from. Pick the one that fits best or create your own in this style:
+1. "You won't believe this 🤯"
+2. "The harsh truth about [Topic] 🛑"
+3. "Wait until the end 😱"
+4. "Nobody is talking about this 🤫"
+5. "The biggest lie we've been told 🚫"
+6. "How to actually [Goal] 🧠"
+7. "This changes everything 🤯"
+8. "I can't believe he said that 😳"
+9. "The secret to [Topic] 🔑"
+10. "Stop doing this immediately ❌"
+11. "This will blow your mind 🤯"
+12. "The reality of [Topic] 📉"
+13. "Genius or crazy? 🤔"
+14. "Watch this before you [Action] ⚠️"
+15. "The unspoken rule of [Topic] 📖"
 
 For SFX cues, suggest 0–3 sound effect trigger points per clip. Use these types:
 - "whoosh" — on fast cuts, transitions, or emphasis
@@ -118,7 +134,7 @@ IMPORTANT:
 - "viral_score" should be an honest assessment out of 100 based on modern short-form retention metrics.
 - "emotional_intensity" is a float 0.0–1.0 (0 = calm talking, 1 = screaming/crying/peak emotion)
 - "sfx_cues" time_offset is RELATIVE to clip start (0 = beginning of clip)
-- "hook_text" is the attention-grabbing opening line viewers see first (same as "hook" if not different)
+- "hook_text" is the attention-grabbing opening line viewers see first, and MUST include an emoji.
 
 Transcript (Read ENTIRELY before answering):
 {{text}}
@@ -149,8 +165,10 @@ def ask_gemini(prompt):
     api_key = gemini_usage.get_available_key()
     client = genai.Client(api_key=api_key)
     
+    current_model = gemini_usage.get_model()
+    
     response = client.models.generate_content(
-        model=MODEL,
+        model=current_model,
         contents=prompt,
         config=types.GenerateContentConfig(
             temperature=0.3
@@ -182,12 +200,11 @@ def extract_json(text):
 # MAIN FUNCTION
 # ==========================
 
-def generate_viral_clips(transcript_path, target_duration=None, num_clips=6):
-
+def generate_viral_clips(transcript_path, target_duration=None, num_clips=6, clip_vibe="viral", hook_vibe="clickbait"):
     transcript = load_transcript(transcript_path)
     text = transcript_to_text(transcript)
 
-    prompt = build_prompt(text, target_duration=target_duration, num_clips=num_clips)
+    prompt = build_prompt(text, target_duration=target_duration, num_clips=num_clips, clip_vibe=clip_vibe, hook_vibe=hook_vibe)
 
     print("\nAnalyzing transcript for viral moments...\n")
 
@@ -218,9 +235,6 @@ def generate_viral_clips(transcript_path, target_duration=None, num_clips=6):
 # SAVE OUTPUT
 # ==========================
 
-import os
-import json
-
 def save_clips(clips, workspace):
 
     # correct folder structure
@@ -250,6 +264,6 @@ if __name__ == "__main__":
 
     clips = generate_viral_clips(path)
 
-    save_clips(clips)
+    save_clips(clips, os.path.dirname(path))
 
     print("\nDONE 🚀")

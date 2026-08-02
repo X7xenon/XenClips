@@ -1,6 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
-import { Send, UploadCloud, List, History, Settings2, PlaySquare, Upload as UploadIcon, FileText } from "lucide-react";
+import {
+  Send,
+  UploadCloud,
+  List,
+  History,
+  Settings2,
+  PlaySquare,
+  Upload as UploadIcon,
+  FileText,
+} from "lucide-react";
 import { api, getCurrentJob, type Clip } from "@/lib/api";
 import { usePublishStore, type Platform } from "@/lib/publish-store";
 import {
@@ -31,15 +40,18 @@ function PublishHub() {
 
   // Fetch all available jobs on mount
   useEffect(() => {
-    api.jobs().then(data => {
-      setJobs(data);
-      const current = getCurrentJob();
-      if (current && data.some(j => j.job_id === current)) {
-        setSelectedJobId(current);
-      } else if (data.length > 0) {
-        setSelectedJobId(data[0].job_id);
-      }
-    }).catch(console.error);
+    api
+      .jobs()
+      .then((data) => {
+        setJobs(data);
+        const current = getCurrentJob();
+        if (current && data.some((j) => j.job_id === current)) {
+          setSelectedJobId(current);
+        } else if (data.length > 0) {
+          setSelectedJobId(data[0].job_id);
+        }
+      })
+      .catch(console.error);
   }, []);
 
   // Fetch clips when a job is selected
@@ -118,27 +130,29 @@ function PublishHub() {
 
   const handleFilesDrop = async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
-    const videos = fileArray.filter(f => f.type.startsWith("video/"));
-    const subtitles = fileArray.filter(f => f.name.endsWith(".srt") || f.name.endsWith(".txt") || f.name.endsWith(".vtt"));
+    const videos = fileArray.filter((f) => f.type.startsWith("video/"));
+    const subtitles = fileArray.filter(
+      (f) => f.name.endsWith(".srt") || f.name.endsWith(".txt") || f.name.endsWith(".vtt"),
+    );
 
     const newClips: Clip[] = [];
 
     for (const video of videos) {
       // Find matching subtitle by base name
       const baseName = video.name.substring(0, video.name.lastIndexOf("."));
-      const subtitle = subtitles.find(s => s.name.startsWith(baseName));
-      
+      const subtitle = subtitles.find((s) => s.name.startsWith(baseName));
+
       let hook_text = "Local Custom Clip";
-      
+
       if (subtitle) {
         try {
           const text = await subtitle.text();
           // Extremely basic SRT/VTT parser to get just the spoken text
-          const lines = text.split('\n');
+          const lines = text.split("\n");
           const spokenLines = lines
-            .map(l => l.trim())
-            .filter(l => l && isNaN(Number(l)) && !l.includes('-->') && !l.startsWith('WEBVTT'));
-          
+            .map((l) => l.trim())
+            .filter((l) => l && isNaN(Number(l)) && !l.includes("-->") && !l.startsWith("WEBVTT"));
+
           if (spokenLines.length > 0) {
             hook_text = spokenLines.join(" ").substring(0, 500); // Take first 500 chars as hook/context
           }
@@ -158,7 +172,7 @@ function PublishHub() {
     }
 
     if (newClips.length > 0) {
-      setClips(prev => [...newClips, ...prev]);
+      setClips((prev) => [...newClips, ...prev]);
       setSelectedJobId(""); // clear job selection
     }
   };
@@ -199,8 +213,10 @@ function PublishHub() {
               onChange={(e) => setSelectedJobId(e.target.value)}
               className="w-full text-xs mb-3"
             >
-              <option value="" disabled>Select a processing job...</option>
-              {jobs.map(job => (
+              <option value="" disabled>
+                Select a processing job...
+              </option>
+              {jobs.map((job) => (
                 <option key={job.job_id} value={job.job_id}>
                   Job: {job.job_id.substring(0, 8)} ({job.clip_count} clips)
                 </option>
@@ -209,7 +225,10 @@ function PublishHub() {
 
             {/* Drag and Drop Zone */}
             <div
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
               onDragLeave={() => setDragOver(false)}
               onDrop={(e) => {
                 e.preventDefault();
@@ -218,12 +237,18 @@ function PublishHub() {
               }}
               onClick={() => fileInputRef.current?.click()}
               className={`relative group cursor-pointer transition-all duration-300 rounded-xl border-2 border-dashed p-4 text-center ${
-                dragOver ? "border-[#00F0FF] bg-[rgba(0,240,255,0.05)]" : "border-[rgba(255,255,255,0.1)] bg-[rgba(20,20,25,0.4)] hover:border-[rgba(255,255,255,0.2)]"
+                dragOver
+                  ? "border-[#00F0FF] bg-[rgba(0,240,255,0.05)]"
+                  : "border-[rgba(255,255,255,0.1)] bg-[rgba(20,20,25,0.4)] hover:border-[rgba(255,255,255,0.2)]"
               }`}
             >
-              <UploadIcon className={`w-6 h-6 mx-auto mb-2 transition-colors ${dragOver ? "text-[#00F0FF]" : "text-gray-500"}`} />
+              <UploadIcon
+                className={`w-6 h-6 mx-auto mb-2 transition-colors ${dragOver ? "text-[#00F0FF]" : "text-gray-500"}`}
+              />
               <div className="text-xs font-medium text-gray-300">Drop custom clips</div>
-              <div className="text-[10px] text-gray-500 mt-1">Include .srt to auto-read subtitles</div>
+              <div className="text-[10px] text-gray-500 mt-1">
+                Include .srt to auto-read subtitles
+              </div>
               <input
                 ref={fileInputRef}
                 type="file"

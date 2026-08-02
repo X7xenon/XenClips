@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as RemoteRouteImport } from './routes/remote'
 import { Route as PublishRouteImport } from './routes/publish'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as AccountsRouteImport } from './routes/accounts'
@@ -22,6 +23,11 @@ import { Route as ClipsClipIdRouteImport } from './routes/clips.$clipId'
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RemoteRoute = RemoteRouteImport.update({
+  id: '/remote',
+  path: '/remote',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PublishRoute = PublishRouteImport.update({
@@ -70,6 +76,7 @@ export interface FileRoutesByFullPath {
   '/accounts': typeof AccountsRoute
   '/history': typeof HistoryRoute
   '/publish': typeof PublishRouteWithChildren
+  '/remote': typeof RemoteRoute
   '/settings': typeof SettingsRoute
   '/clips/$clipId': typeof ClipsClipIdRoute
   '/publish/history': typeof PublishHistoryRoute
@@ -81,6 +88,7 @@ export interface FileRoutesByTo {
   '/accounts': typeof AccountsRoute
   '/history': typeof HistoryRoute
   '/publish': typeof PublishRouteWithChildren
+  '/remote': typeof RemoteRoute
   '/settings': typeof SettingsRoute
   '/clips/$clipId': typeof ClipsClipIdRoute
   '/publish/history': typeof PublishHistoryRoute
@@ -93,6 +101,7 @@ export interface FileRoutesById {
   '/accounts': typeof AccountsRoute
   '/history': typeof HistoryRoute
   '/publish': typeof PublishRouteWithChildren
+  '/remote': typeof RemoteRoute
   '/settings': typeof SettingsRoute
   '/clips/$clipId': typeof ClipsClipIdRoute
   '/publish/history': typeof PublishHistoryRoute
@@ -106,6 +115,7 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/history'
     | '/publish'
+    | '/remote'
     | '/settings'
     | '/clips/$clipId'
     | '/publish/history'
@@ -117,6 +127,7 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/history'
     | '/publish'
+    | '/remote'
     | '/settings'
     | '/clips/$clipId'
     | '/publish/history'
@@ -128,6 +139,7 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/history'
     | '/publish'
+    | '/remote'
     | '/settings'
     | '/clips/$clipId'
     | '/publish/history'
@@ -140,6 +152,7 @@ export interface RootRouteChildren {
   AccountsRoute: typeof AccountsRoute
   HistoryRoute: typeof HistoryRoute
   PublishRoute: typeof PublishRouteWithChildren
+  RemoteRoute: typeof RemoteRoute
   SettingsRoute: typeof SettingsRoute
   ClipsClipIdRoute: typeof ClipsClipIdRoute
   ClipsIndexRoute: typeof ClipsIndexRoute
@@ -152,6 +165,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/remote': {
+      id: '/remote'
+      path: '/remote'
+      fullPath: '/remote'
+      preLoaderRoute: typeof RemoteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/publish': {
@@ -231,6 +251,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountsRoute: AccountsRoute,
   HistoryRoute: HistoryRoute,
   PublishRoute: PublishRouteWithChildren,
+  RemoteRoute: RemoteRoute,
   SettingsRoute: SettingsRoute,
   ClipsClipIdRoute: ClipsClipIdRoute,
   ClipsIndexRoute: ClipsIndexRoute,

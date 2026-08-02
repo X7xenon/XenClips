@@ -79,7 +79,212 @@ def probe_video(video_path):
 #   "full_vertical" — content-aware/center crop, fills the whole 1080x1920 frame
 #   "bw_letterbox"  — original aspect kept, centered, black bars top/bottom
 #   "blur_bg"       — original aspect kept, centered, blurred stretched copy fills bars
-LAYOUTS = ["full_vertical", "bw_letterbox", "blur_bg", "ishowspeed", "original"]
+LAYOUTS = ["full_vertical", "bw_letterbox", "blur_bg", "streamer", "original"]
+
+
+# ==========================
+# Hook Text Styles
+# ==========================
+# Each style defines ffmpeg drawtext parameters for the hook overlay.
+# Keys: fontcolor, bordercolor, borderw, box (0|1), boxcolor, boxborderw,
+#        shadowcolor, shadowx, shadowy, extra (raw extra filter options str)
+HOOK_STYLES = {
+    "default": {
+        "fontcolor": "white",
+        "borderw": 3,
+        "bordercolor": "black",
+        "box": 0,
+        "shadowx": 0, "shadowy": 0,
+    },
+    "neon_blue": {
+        "fontcolor": "#00F0FF",
+        "borderw": 4,
+        "bordercolor": "#001030",
+        "box": 0,
+        "shadowx": 2, "shadowy": 2,
+        "shadowcolor": "#0066FF",
+    },
+    "fire": {
+        "fontcolor": "#FFD700",
+        "borderw": 4,
+        "bordercolor": "#8B0000",
+        "box": 0,
+        "shadowx": 3, "shadowy": 3,
+        "shadowcolor": "#FF4500",
+    },
+    "toxic_green": {
+        "fontcolor": "#39FF14",
+        "borderw": 4,
+        "bordercolor": "#003300",
+        "box": 0,
+        "shadowx": 2, "shadowy": 2,
+        "shadowcolor": "#00CC00",
+    },
+    "hot_pink": {
+        "fontcolor": "#FF69B4",
+        "borderw": 4,
+        "bordercolor": "#4B0030",
+        "box": 0,
+        "shadowx": 2, "shadowy": 2,
+        "shadowcolor": "#CC0066",
+    },
+    "gold_luxury": {
+        "fontcolor": "#FFD700",
+        "borderw": 0,
+        "bordercolor": "black",
+        "box": 1,
+        "boxcolor": "black@0.65",
+        "boxborderw": 12,
+        "shadowx": 0, "shadowy": 0,
+    },
+    "white_box": {
+        "fontcolor": "black",
+        "borderw": 0,
+        "bordercolor": "black",
+        "box": 1,
+        "boxcolor": "white@0.9",
+        "boxborderw": 14,
+        "shadowx": 0, "shadowy": 0,
+    },
+    "red_alert": {
+        "fontcolor": "white",
+        "borderw": 3,
+        "bordercolor": "#8B0000",
+        "box": 1,
+        "boxcolor": "#FF0000@0.75",
+        "boxborderw": 10,
+        "shadowx": 0, "shadowy": 0,
+    },
+    "purple_glow": {
+        "fontcolor": "#E040FB",
+        "borderw": 4,
+        "bordercolor": "#1A0030",
+        "box": 0,
+        "shadowx": 3, "shadowy": 3,
+        "shadowcolor": "#9C27B0",
+    },
+    "ice_white": {
+        "fontcolor": "white",
+        "borderw": 5,
+        "bordercolor": "#0099CC",
+        "box": 0,
+        "shadowx": 4, "shadowy": 4,
+        "shadowcolor": "#00CFFF@0.7",
+    },
+    "orange_pop": {
+        "fontcolor": "#FF6600",
+        "borderw": 4,
+        "bordercolor": "#1A0000",
+        "box": 0,
+        "shadowx": 2, "shadowy": 2,
+        "shadowcolor": "#FF3300",
+    },
+    "dark_glass": {
+        "fontcolor": "white",
+        "borderw": 2,
+        "bordercolor": "black",
+        "box": 1,
+        "boxcolor": "black@0.5",
+        "boxborderw": 18,
+        "shadowx": 0, "shadowy": 0,
+    },
+    "yellow_stroke": {
+        "fontcolor": "black",
+        "borderw": 5,
+        "bordercolor": "#FFD700",
+        "box": 0,
+        "shadowx": 3, "shadowy": 3,
+        "shadowcolor": "#FFA500",
+    },
+    "cyan_glow": {
+        "fontcolor": "white",
+        "borderw": 0,
+        "bordercolor": "black",
+        "box": 1,
+        "boxcolor": "#00BCD4@0.7",
+        "boxborderw": 12,
+        "shadowx": 4, "shadowy": 4,
+        "shadowcolor": "#00E5FF",
+    },
+    "mrbeast": {
+        "fontcolor": "#FFFF00",
+        "borderw": 5,
+        "bordercolor": "black",
+        "box": 0,
+        "shadowx": 4, "shadowy": 4,
+        "shadowcolor": "black",
+    },
+}
+
+
+import textwrap
+
+def _hex_to_ass_color(color_str):
+    color_str = color_str.strip().lower()
+    alpha = "00"
+    if "@" in color_str:
+        parts = color_str.split("@")
+        color_str = parts[0]
+        alpha_val = int((1.0 - float(parts[1])) * 255)
+        alpha = f"{alpha_val:02X}"
+
+    if color_str == "white":
+        return f"&H{alpha}FFFFFF"
+    elif color_str == "black":
+        return f"&H{alpha}000000"
+    
+    if color_str.startswith("#"):
+        color_str = color_str[1:]
+    if len(color_str) == 6:
+        r, g, b = color_str[0:2], color_str[2:4], color_str[4:6]
+        return f"&H{alpha}{b}{g}{r}".upper()
+    return f"&H{alpha}FFFFFF"
+
+import tempfile
+import uuid
+
+def _build_hook_ass_file(hook_text, style_key, out_w, out_h):
+    s = HOOK_STYLES.get(style_key) or HOOK_STYLES["default"]
+    
+    primary = _hex_to_ass_color(s.get("fontcolor", "white"))
+    outline_c = _hex_to_ass_color(s.get("bordercolor", "black"))
+    back_c = _hex_to_ass_color(s.get("boxcolor", "black@0.5") if s.get("box") else s.get("shadowcolor", "black"))
+    
+    border_style = 3 if s.get("box") else 1
+    outline_w = s.get("boxborderw", 10) if s.get("box") else s.get("borderw", 3)
+    shadow_w = max(s.get("shadowx", 0), s.get("shadowy", 0))
+    
+    font = "Arial"
+    fontsize = int(out_h * 0.055)
+    
+    # 8 = top center
+    alignment = 8
+    margin_v = int(out_h * 0.07)
+    margin_lr = 60
+    
+    safe_hook_text = hook_text.replace("\\n", "\\N")
+    
+    ass_content = f"""[Script Info]
+ScriptType: v4.00+
+PlayResX: {out_w}
+PlayResY: {out_h}
+WrapStyle: 1
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,{font},{fontsize},{primary},&H000000FF,{outline_c},{back_c},1,0,0,0,100,100,0,0,{border_style},{outline_w},{shadow_w},{alignment},{margin_lr},{margin_lr},{margin_v},1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.00,1:00:00.00,Default,,0,0,0,,{safe_hook_text}
+"""
+    
+    temp_path = os.path.join(tempfile.gettempdir(), f"hook_{uuid.uuid4().hex[:8]}.ass")
+    with open(temp_path, "w", encoding="utf-8") as f:
+        f.write(ass_content)
+    
+    safe_path = str(temp_path).replace("\\", "/").replace(":", "\\:")
+    return f"ass='{safe_path}'"
 
 
 def _layout_filter(src_w, src_h, layout):
@@ -114,6 +319,13 @@ def _layout_filter(src_w, src_h, layout):
             f"crop={out_w}:{out_h},gblur=sigma=20[bgblur];"
             f"[fg]scale={out_w}:-2:force_original_aspect_ratio=decrease[fgscaled];"
             f"[bgblur][fgscaled]overlay=(W-w)/2:(H-h)/2"
+        )
+
+    if layout == "streamer":
+        # keep original aspect ratio, scale to fit width, pad top/bottom white
+        return (
+            f"scale={out_w}:-2:force_original_aspect_ratio=decrease,"
+            f"pad={out_w}:{out_h}:(ow-iw)/2:(oh-ih)/2:white"
         )
 
     # fallback: legacy behaviour (no layout specified)
@@ -192,8 +404,9 @@ def _get_default_fontfile() -> str:
 def build_filters(
     src_w, src_h,
     aspect="original",
-    layout=None,            # NEW: full_vertical | bw_letterbox | blur_bg (overrides aspect if set)
+    layout=None,            # full_vertical | bw_letterbox | blur_bg (overrides aspect if set)
     hook_text=None,
+    hook_style="default",   # key into HOOK_STYLES
     zoom_punch=False,
     fade_in=0.3,
     fade_out=0.3,
@@ -270,21 +483,8 @@ def build_filters(
 
     # ── 3. Hook text overlay (big bold opener) ───────────────────────────────
     if hook_text:
-        safe_hook = _escape_drawtext(hook_text)
-        # Explicit fontfile avoids fontconfig lookup, which crashes on
-        # some Windows FFmpeg builds (access violation in fc_config_init).
-        fontfile = _get_default_fontfile()
-        fontfile_part = ""
-        if fontfile:
-            fontfile_esc = fontfile.replace("\\", "/").replace(":", "\\:")
-            fontfile_part = f":fontfile='{fontfile_esc}'"
         vf_parts.append(
-            f"drawtext=text='{safe_hook}'"
-            f"{fontfile_part}"
-            f":fontcolor=white:fontsize={int(out_h * 0.045)}"
-            f":borderw=3:bordercolor=black"
-            f":x=(w-text_w)/2:y=h*0.07"
-            f":enable='between(t,0,2.5)'"
+            _build_hook_ass_file(hook_text, hook_style or "default", out_w, out_h)
         )
 
     # ── 4. ASS karaoke subtitle burn-in (replaces old drawtext captions) ────
@@ -329,7 +529,7 @@ def get_ffmpeg_safe_ass_path(ass_path):
 # ==========================
 def _burn_captions_only(
     video_path, output_path,
-    ass_path=None, hook_text=None, zoom_punch=False,
+    ass_path=None, hook_text=None, hook_style="default", zoom_punch=False,
     fade_in=0.3, fade_out=0.3, clip_duration=None,
     normalize_audio=True, target_loudness=-14,
     emotion_peaks=None,
@@ -344,6 +544,7 @@ def _burn_captions_only(
         aspect="original",
         layout=None,
         hook_text=hook_text,
+        hook_style=hook_style,
         zoom_punch=zoom_punch,
         fade_in=fade_in,
         fade_out=fade_out,
@@ -387,7 +588,7 @@ def _get_duration(path):
 def render_raw_clip(
     raw_clip_path, output_path,
     layout=None, aspect="original", ass_path=None,
-    hook_text=None, zoom_punch=False, fade_in=0.3, fade_out=0.3,
+    hook_text=None, hook_style="default", zoom_punch=False, fade_in=0.3, fade_out=0.3,
     normalize_audio=True, target_loudness=-14,
     autocrop_quality="fast", autocrop_encoder="hw",
     precropped_path=None,  # if set, skip raw-cut+YOLO entirely and burn captions onto this cached crop
@@ -412,7 +613,7 @@ def render_raw_clip(
         # just burn this template's captions onto it.
         _burn_captions_only(
             precropped_path, output_path,
-            ass_path=ass_path, hook_text=hook_text, zoom_punch=zoom_punch,
+            ass_path=ass_path, hook_text=hook_text, hook_style=hook_style, zoom_punch=zoom_punch,
             fade_in=fade_in, fade_out=fade_out, clip_duration=duration,
             normalize_audio=normalize_audio, target_loudness=target_loudness,
             emotion_peaks=emotion_peaks,
@@ -423,7 +624,7 @@ def render_raw_clip(
                 os.remove(output_path)
         return final_output_path
 
-    if layout in ("full_vertical", "ishowspeed"):
+    if layout == "full_vertical":
         temp_dir = tempfile.gettempdir()
         cropped_path = os.path.join(temp_dir, f"cropped_{uuid.uuid4().hex[:8]}.mp4")
         try:
@@ -431,11 +632,11 @@ def render_raw_clip(
                 raw_clip_path, cropped_path,
                 ratio="9:16", quality=autocrop_quality, encoder=autocrop_encoder,
                 frame_skip=1, downscale=2,
-                force_fill=(layout == "ishowspeed"),
+                force_fill=False,
             )
             _burn_captions_only(
                 cropped_path, output_path,
-                ass_path=ass_path, hook_text=hook_text, zoom_punch=zoom_punch,
+                ass_path=ass_path, hook_text=hook_text, hook_style=hook_style, zoom_punch=zoom_punch,
                 fade_in=fade_in, fade_out=fade_out, clip_duration=duration,
                 normalize_audio=normalize_audio, target_loudness=target_loudness,
                 emotion_peaks=emotion_peaks,
@@ -459,7 +660,7 @@ def render_raw_clip(
     vf, uses_complex = build_filters(
         src_w, src_h,
         aspect=aspect, layout=layout,
-        hook_text=hook_text, zoom_punch=zoom_punch,
+        hook_text=hook_text, hook_style=hook_style, zoom_punch=zoom_punch,
         fade_in=fade_in, fade_out=fade_out,
         clip_duration=duration, ass_path=safe_ass_path,
         emotion_peaks=emotion_peaks,
@@ -512,7 +713,7 @@ def precrop_raw_clips(raw_clip_records, layout, autocrop_quality="fast", autocro
                 raw_path, cropped_path,
                 ratio="9:16", quality=autocrop_quality, encoder=autocrop_encoder,
                 frame_skip=1, downscale=2,
-                force_fill=(layout == "ishowspeed"),
+                force_fill=False,
             )
             cache[clip_number] = cropped_path
             print(f"   ✅ Clip {clip_number} cropped → {cropped_path}")
@@ -546,7 +747,7 @@ def process_raw_clips_multi_template(
     os.makedirs(output_dir, exist_ok=True)
 
     precropped_map = None
-    if layout in ("full_vertical", "ishowspeed"):
+    if layout == "full_vertical":
         precropped_map = precrop_raw_clips(raw_clip_records, layout, autocrop_quality, autocrop_encoder)
 
     results = {template: {} for template in templates}
@@ -557,6 +758,7 @@ def process_raw_clips_multi_template(
             clip_number = rec["clip_number"]
             raw_path = rec.get("raw_path")
             hook_text = rec.get("hook_text") or rec.get("hook")
+            hook_style = rec.get("hook_style") or "default"
 
             if not raw_path or not os.path.exists(raw_path):
                 print(f"   ❌ Clip {clip_number}: raw clip missing, skipping")
@@ -570,7 +772,7 @@ def process_raw_clips_multi_template(
                 precropped_path = precropped_map.get(clip_number) if precropped_map else None
                 render_raw_clip(
                     raw_path, output_path,
-                    layout=layout, ass_path=ass_path, hook_text=hook_text,
+                    layout=layout, ass_path=ass_path, hook_text=hook_text, hook_style=hook_style,
                     zoom_punch=zoom_punch, fade_in=fade_in, fade_out=fade_out,
                     normalize_audio=normalize_audio,
                     autocrop_quality=autocrop_quality, autocrop_encoder=autocrop_encoder,
@@ -606,11 +808,11 @@ def process_raw_clips_multi_layout_template(
     """
     Renders already-cut raw clips across MULTIPLE layouts AND MULTIPLE
     caption templates — e.g. 2 layouts x 3 templates = 6 output variants
-    per clip. YOLO crop (full_vertical/ishowspeed) is still cached once per
+    per clip. YOLO crop (full_vertical) is still cached once per
     (layout, clip) — not once per (layout, template, clip) — since it's
     layout-dependent, not template-dependent.
 
-    layouts: list of layout names, e.g. ["full_vertical", "ishowspeed"]
+    layouts: list of layout names, e.g. ["full_vertical", "streamer"]
     ass_path_map: {template: {clip_number: ass_path}} — same as
         process_raw_clips_multi_template (captions don't depend on layout)
 
@@ -622,7 +824,7 @@ def process_raw_clips_multi_layout_template(
 
     for layout in layouts:
         precropped_map = None
-        if layout in ("full_vertical", "ishowspeed"):
+        if layout == "full_vertical":
             precropped_map = precrop_raw_clips(raw_clip_records, layout, autocrop_quality, autocrop_encoder)
 
         for template in templates:
@@ -631,6 +833,7 @@ def process_raw_clips_multi_layout_template(
                 clip_number = rec["clip_number"]
                 raw_path = rec.get("raw_path")
                 hook_text = rec.get("hook_text") or rec.get("hook")
+                hook_style = rec.get("hook_style") or "default"
 
                 if not raw_path or not os.path.exists(raw_path):
                     print(f"   ❌ Clip {clip_number}: raw clip missing, skipping")
@@ -644,7 +847,7 @@ def process_raw_clips_multi_layout_template(
                     precropped_path = precropped_map.get(clip_number) if precropped_map else None
                     render_raw_clip(
                         raw_path, output_path,
-                        layout=layout, ass_path=ass_path, hook_text=hook_text,
+                        layout=layout, ass_path=ass_path, hook_text=hook_text, hook_style=hook_style,
                         zoom_punch=zoom_punch, fade_in=fade_in, fade_out=fade_out,
                         normalize_audio=normalize_audio,
                         autocrop_quality=autocrop_quality, autocrop_encoder=autocrop_encoder,
@@ -679,6 +882,7 @@ def cut_clip(
     layout=None,              # NEW
     ass_path=None,
     hook_text=None,
+    hook_style="default",
     zoom_punch=False,
     fade_in=0.3,
     fade_out=0.3,
@@ -695,7 +899,7 @@ def cut_clip(
         aspect = "original"
         layout = None
 
-    # ── full_vertical / ishowspeed use smart (YOLO+face) cropping via ──────
+    # ── full_vertical uses smart (YOLO+face) cropping via ──────
     # autocrop.py. This needs 3 passes instead of 1: raw copy-cut (fast, no
     # re-encode) → autocrop.py's frame-by-frame smart crop (the slow part —
     # CPU YOLO) → a final lightweight pass that only burns captions (no crop
@@ -705,7 +909,7 @@ def cut_clip(
     # bars) when no one's clearly framed or a group is too wide. "ishowspeed"
     # (force_fill=True) NEVER letterboxes — always full-bleed 9:16, falling
     # back to a plain center-crop if nothing is detected.
-    if layout in ("full_vertical", "ishowspeed"):
+    if layout == "full_vertical":
         temp_dir = tempfile.gettempdir()
         raw_path = os.path.join(temp_dir, f"raw_{uuid.uuid4().hex[:8]}.mp4")
         cropped_path = os.path.join(temp_dir, f"cropped_{uuid.uuid4().hex[:8]}.mp4")
@@ -722,13 +926,13 @@ def cut_clip(
                 raw_path, cropped_path,
                 ratio="9:16", quality=autocrop_quality, encoder=autocrop_encoder,
                 frame_skip=1, downscale=2,
-                force_fill=(layout == "ishowspeed"),
+                force_fill=False,
             )
 
             # Step 3: burn captions/hook/fades onto the already-cropped frame
             _burn_captions_only(
                 cropped_path, output_path,
-                ass_path=ass_path, hook_text=hook_text, zoom_punch=zoom_punch,
+                ass_path=ass_path, hook_text=hook_text, hook_style=hook_style, zoom_punch=zoom_punch,
                 fade_in=fade_in, fade_out=fade_out, clip_duration=duration,
                 normalize_audio=normalize_audio, target_loudness=target_loudness,
             )
@@ -751,6 +955,7 @@ def cut_clip(
         aspect=aspect,
         layout=layout,
         hook_text=hook_text,
+        hook_style=hook_style,
         zoom_punch=zoom_punch,
         fade_in=fade_in,
         fade_out=fade_out,
@@ -854,7 +1059,7 @@ def process_clips(
     output_dir,
     ass_files=None,
     aspect="original",
-    layout=None,          # NEW: full_vertical | bw_letterbox | blur_bg | ishowspeed | original
+    layout=None,          # NEW: full_vertical | bw_letterbox | blur_bg | streamer | original
     zoom_punch=False,
     normalize_audio=True,
     fade_in=0.3,
@@ -863,7 +1068,7 @@ def process_clips(
                           # required when rendering the same clips with multiple caption templates
                           # in one run, so each template's output doesn't overwrite the last.
     precropped_map=None,  # NEW: {clip_number: cropped_path} — when set (multi-template runs on
-                          # full_vertical/ishowspeed), skips the expensive raw-cut+YOLO-crop step
+                          # full_vertical, skips the expensive raw-cut+YOLO-crop step
                           # and burns captions directly onto the already-cropped clip instead.
 ):
     data = load_clips(clips_json_path)
@@ -896,6 +1101,7 @@ def process_clips(
         clip_aspect = clip.get("aspect", aspect)
         clip_layout = clip.get("layout", layout)   # per-clip override, falls back to global
         clip_hook   = clip.get("hook_text", global_hook)
+        clip_hook_style = clip.get("hook_style", "default")
         clip_zoom   = clip.get("zoom_punch", zoom_punch)
 
         ass_path = resolve_ass_path(clip, clip_number, ass_files)
@@ -914,7 +1120,7 @@ def process_clips(
                     raise RuntimeError("Pre-cropped clip missing (crop step failed earlier)")
                 _burn_captions_only(
                     cropped_path, output_path,
-                    ass_path=ass_path, hook_text=clip_hook, zoom_punch=clip_zoom,
+                    ass_path=ass_path, hook_text=clip_hook, hook_style=clip_hook_style, zoom_punch=clip_zoom,
                     fade_in=fade_in, fade_out=fade_out, clip_duration=duration,
                     normalize_audio=normalize_audio,
                 )
@@ -925,6 +1131,7 @@ def process_clips(
                     layout=clip_layout,
                     ass_path=ass_path,
                     hook_text=clip_hook,
+                    hook_style=clip_hook_style,
                     zoom_punch=clip_zoom,
                     fade_in=fade_in,
                     fade_out=fade_out,
@@ -983,7 +1190,7 @@ def _precrop_clips_for_yolo_layout(video_path, clips_json_path, workspace, layou
                 raw_path, cropped_path,
                 ratio="9:16", quality=autocrop_quality, encoder=autocrop_encoder,
                 frame_skip=1, downscale=2,
-                force_fill=(layout == "ishowspeed"),
+                force_fill=False,
             )
             cache[clip_number] = cropped_path
             print(f"   ✅ Clip {clip_number} cropped → {cropped_path}")
@@ -1013,7 +1220,7 @@ def process_clips_multi_template(
     template: regenerates .ass files with that template, then re-renders
     all clips tagged with that template's name in the filename.
 
-    For full_vertical/ishowspeed layouts, the expensive YOLO+face-tracking
+    For full_vertical layouts, the expensive YOLO+face-tracking
     crop runs ONCE per clip (cached), not once per template — only the cheap
     caption-burn pass repeats per template.
 
@@ -1031,7 +1238,7 @@ def process_clips_multi_template(
         raise ValueError("generate_ass_fn is required (pass generate_ass.generate_all_ass)")
 
     precropped_map = None
-    if layout in ("full_vertical", "ishowspeed"):
+    if layout == "full_vertical":
         precropped_map = _precrop_clips_for_yolo_layout(
             video_path, clips_json_path, workspace, layout,
             autocrop_quality=process_clips_kwargs.get("autocrop_quality", "fast"),
@@ -1086,7 +1293,7 @@ if __name__ == "__main__":
         "full_vertical": "Full vertical crop (fills frame)",
         "bw_letterbox": "Original ratio + black letterbox",
         "blur_bg": "Original ratio + blurred background fill",
-        "ishowspeed": "Full-bleed 9:16, never letterboxes (center-crop fallback)",
+        "streamer": "9:16 padded with white canvas",
         "original": "Native aspect ratio, no crop/pad at all",
     }
     for idx, l in enumerate(LAYOUTS):

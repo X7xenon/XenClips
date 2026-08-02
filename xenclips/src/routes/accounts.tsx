@@ -9,7 +9,7 @@ import {
   Youtube,
   Instagram,
   ShieldAlert,
-  Trash2
+  Trash2,
 } from "lucide-react";
 import { usePublishStore, type Platform } from "@/lib/publish-store";
 import { AccountCard } from "@/components/publish/AccountCard";
