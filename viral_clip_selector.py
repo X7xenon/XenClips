@@ -69,6 +69,7 @@ Rules:
 {duration_rule}- No overlap between clips
 - Focus ONLY on elite, high-retention moments that will hook viewers in the first 3 seconds and keep them watching until the end.
 - Classify each clip's segment type: "viral" (default), "qa" (clear question+answer), "chapter_boundary" (topic shift), "product_mention" (brand/product named)
+- CRITICAL: If the transcript is in Hindi or Hinglish, you MUST write the "hook_text" in Hinglish (Roman script Hindi) instead of English.
 
 Prioritize (in order of viral potential) based on the "{clip_vibe}" vibe:
 - If "funny": Look for jokes, humorous situations, hilarious reactions, and comedic timing.
