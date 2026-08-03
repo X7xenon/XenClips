@@ -60,9 +60,10 @@ You are an elite, world-class YouTube Shorts & TikTok editor and retention strat
 CRITICAL DIRECTIVE: You MUST read and analyze the ENTIRE transcript from start to finish before selecting clips. Do not just pick moments from the beginning. Many of the most viral, high-retention moments happen in the middle or at the end. Analyze the full narrative arc and context.
 
 Task:
-1. First, determine the CATEGORY of this video content (e.g. podcast, comedy, interview, motivation, educational, storytelling, gaming, reaction, news, vlog, debate, review).
-2. Deeply analyze the full transcript to find the absolute strongest, most viral moments.
-3. For each clip, analyze the emotional intensity and suggest sound effect cue points.
+1. READ THE ENTIRE TRANSCRIPT. You must write a "video_analysis" mapping out the timeline from start to finish, explicitly highlighting high-retention moments found in the middle and end of the video.
+2. Determine the CATEGORY of this video content (e.g. podcast, comedy, interview, motivation).
+3. Deeply analyze the full transcript to find the absolute strongest, most viral moments.
+4. For each clip, analyze the emotional intensity and suggest sound effect cue points.
 
 Rules:
 - Extract EXACTLY {num_clips} viral clips. Not more, not less.
@@ -104,12 +105,14 @@ For SFX cues, suggest 0–3 sound effect trigger points per clip. Use these type
 - "pop" — on quick visual emphasis
 - "laugh" — on genuinely funny moments
 
-Return ONLY a valid JSON array. No markdown fences, no explanation, no intro text.
+Return ONLY a valid JSON object. No markdown fences, no explanation, no intro text.
 
 Format:
 
-[
-  {{
+{{
+  "video_analysis": "I have scanned the entire video from start to finish. In the first 10 minutes... In the middle... At the end, the most viral moment is...",
+  "clips": [
+    {{
     "title": "",
     "hook": "",
     "hook_text": "",
@@ -127,8 +130,9 @@ Format:
       {{"time_offset": 2.4, "type": "whoosh"}},
       {{"time_offset": 12.1, "type": "ding"}}
     ]
-  }}
-]
+    }}
+  ]
+}}
 
 IMPORTANT:
 - "category" should be the SAME for all clips (it describes the source video, not individual clips)
@@ -190,11 +194,22 @@ def extract_json(text):
     text = text.strip()
     text = text.replace("```json", "").replace("```", "")
 
-    match = re.search(r"\[.*\]", text, re.DOTALL)
-    if not match:
+    # Try to find a JSON object first (new format with video_analysis)
+    match_obj = re.search(r"\{.*\}", text, re.DOTALL)
+    if match_obj:
+        try:
+            data = json.loads(match_obj.group())
+            if "clips" in data:
+                return data["clips"]
+        except Exception:
+            pass
+
+    # Fallback to finding just an array (old format)
+    match_arr = re.search(r"\[.*\]", text, re.DOTALL)
+    if not match_arr:
         raise ValueError("Invalid JSON from Gemini")
 
-    return json.loads(match.group())
+    return json.loads(match_arr.group())
 
 
 # ==========================
