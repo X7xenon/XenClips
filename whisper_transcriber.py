@@ -232,15 +232,12 @@ def get_whisper_model() -> WhisperModel:
     return _model
 
 
-def detect_language(clip_path: str) -> str:
+def detect_language(clip_path: str) -> tuple[str, bool]:
     """Fast language detection using the first audio segment only.
-    Returns 'hi' for Hindi/Hinglish content, 'en' for English.
+    Returns (language_code, is_hindi) tuple.
 
     Uses language_detection_segments=1 so Whisper only looks at the first
     ~30s audio chunk for language detection — no full decode, very fast.
-    If the detected language is Hindi (or related Indic), we transcribe in 'hi'
-    so we get Devanagari that can then be transliterated to Hinglish.
-    Otherwise we use 'en' for normal English transcription.
     """
     model = get_whisper_model()
     _, info = model.transcribe(
@@ -254,10 +251,8 @@ def detect_language(clip_path: str) -> str:
     lang = info.language
     prob = round(info.language_probability, 3)
     print(f"  [lang-detect] detected={lang!r} prob={prob}")
-    # Treat Hindi and related Indic scripts as 'hi' for transliteration
-    if lang in ("hi", "mr", "ne", "ur", "pa"):
-        return "hi"
-    return "en"
+    is_hindi = lang in ("hi", "mr", "ne", "ur", "pa")
+    return lang, is_hindi
 
 
 def transcribe_clip_words(
@@ -281,29 +276,36 @@ def transcribe_clip_words(
 
     model = get_whisper_model()
 
-    # Smart language selection: if caller didn't specify a language, do a fast
-    # detect pass first. This prevents the 'en' tokenizer from translating Hindi
-    # speech, while still correctly handling pure English content.
+    # Smart language selection
+    is_hindi = False
     if language is None:
-        language = detect_language(clip_path)
+        language, is_hindi = detect_language(clip_path)
         if verbose:
-            print(f"  [auto-selected language: {language!r}]")
+            print(f"  [auto-selected language: {language!r}, is_hindi={is_hindi}]")
+    elif language == "hi":
+        is_hindi = True
 
     # Choose initial_prompt based on language
-    if language == "hi":
-        prompt = "हिंदी और इंग्लिश मिली-जुली बातचीत।"  # Tells Whisper to expect Hindi
+    if is_hindi:
+        # For Hindi/Hinglish: transcribe with language='hi' so Whisper uses
+        # its Hindi acoustic model, but we instruct it to use Roman/Hinglish
+        # script via the initial prompt. This gives cleaner Hinglish captions
+        # than Devanagari->transliteration.
+        prompt = "Hinglish conversation. Write words in Roman script only, no Devanagari."
+        transcribe_language = "hi"
     else:
         prompt = "Conversation in English."
+        transcribe_language = language
 
     segments, info = model.transcribe(
         clip_path,
-        language=language,
+        language=transcribe_language,
         beam_size=beam_size,
         temperature=TEMPERATURE,
         word_timestamps=True,
         vad_filter=True,
         vad_parameters=VAD_PARAMETERS,
-        condition_on_previous_text=False,  # each clip is independent — don't bias on prior segments
+        condition_on_previous_text=False,
         initial_prompt=prompt,
     )
 
@@ -312,9 +314,6 @@ def transcribe_clip_words(
         print("Detected Language :", info.language)
         print("Probability       :", round(info.language_probability, 3))
         print("-------------\n")
-
-    detected_lang = info.language
-    needs_transliteration = detected_lang in ("hi", "mr", "ne", "sa")  # Hindi, Marathi, Nepali, Sanskrit
 
     words = []
     for segment in segments:
@@ -329,9 +328,12 @@ def transcribe_clip_words(
             if not text:
                 continue
 
-            # Transliterate Devanagari → Roman if detected as Hindi
-            if needs_transliteration and _has_devanagari(text):
+            # If Whisper still outputs Devanagari despite our prompt, transliterate it
+            if is_hindi and _has_devanagari(text):
                 text = _transliterate_devanagari(text)
+                # Skip if transliteration produced garbage (empty or just 'a')
+                if not text or text.strip() in ("", "a", "aa"):
+                    continue
 
             words.append({
                 "text": text,
@@ -339,8 +341,8 @@ def transcribe_clip_words(
                 "end": float(word.end),
             })
 
-    if needs_transliteration and verbose:
-        print(f"  [transliterated from {detected_lang} → Roman script]")
+    if is_hindi and verbose:
+        print(f"  [Hindi/Hinglish clip — Roman script output]")
 
     return words
 

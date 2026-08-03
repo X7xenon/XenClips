@@ -2,48 +2,27 @@
 hinglish_corrector.py
 
 Corrects spelling/casing of Hinglish (Latin-script, code-switched
-Hindi+English) words using a LOCAL Qwen model via Ollama — e.g. fixes
-Whisper output like "gya" -> "gaya", "hooga" -> "hoga", "thay" -> "the".
+Hindi+English) words using a comprehensive local dictionary — no Ollama,
+no internet required.
+
+Fixes Whisper output like "gya" -> "gaya", "hooga" -> "hoga", "thay" -> "the".
 
 Only runs correction when a clip is actually detected as Hinglish (mixed) —
-pure English clips are left untouched, saving time and avoiding the LLM
-"correcting" things that don't need it.
+pure English clips are left untouched.
 
 CRITICAL CONSTRAINT: word-level timestamps must stay aligned for caption
 rendering (word-highlight templates rely on 1:1 word->timestamp mapping).
-So correction is done on the WORD LIST, not the joined sentence — the model
-is instructed to return exactly the same number of words in the same order,
-only fixing spelling/casing. If it doesn't (wrong count), we discard the
-correction and keep Whisper's original words rather than risk breaking
-timestamp alignment.
-
-Requires Ollama running locally with a Qwen model pulled, e.g.:
-    ollama pull qwen2.5:7b
-    ollama serve   (usually auto-running as a background service on Windows)
+So correction is done word-by-word — only fixing spelling/casing, never
+merging, splitting, adding or removing words.
 """
 
 from __future__ import annotations
 
-import json
 import re
-import urllib.request
-import urllib.error
-
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "qwen2.5:1.5b"  # change to whatever tag you've pulled (e.g. "qwen2.5:3b" for speed)
-
-# Set True to skip Ollama LLM corrections entirely (local dict fixes still run).
-# Useful when Ollama is not running / slow on CPU. Local slang/swear corrections
-# still happen, only the full LLM spelling pass is skipped.
-SKIP_OLLAMA = True
 
 # ==========================================================
 # HINGLISH DETECTION (cheap heuristic — no LLM call needed)
 # ==========================================================
-# A curated list of common Hindi words as they appear in Whisper's romanized
-# output. Not exhaustive — just enough to reliably flag "this clip has
-# Hindi mixed in" vs "this is pure English", so we don't waste an LLM call
-# on English-only clips.
 _HINGLISH_MARKERS = {
     "hai", "hain", "tha", "thi", "the", "thay", "ho", "hota", "hoga", "hogi",
     "kya", "kyun", "kyu", "kaise", "kaisi", "kaisa", "kahan", "kab", "kaun",
@@ -51,13 +30,12 @@ _HINGLISH_MARKERS = {
     "mein", "me", "ka", "ki", "ke", "ko", "se", "pe", "pr",
     "yeh", "ye", "woh", "wo", "iska", "uska", "apna", "apne",
     "kar", "karo", "karte", "karna", "kiya", "gaya", "gayi", "gaye", "gya",
-    "raha", "rahi", "rahe", "diya", "diya", "liya", "aaya", "aaye",
+    "raha", "rahi", "rahe", "diya", "liya", "aaya", "aaye",
     "bhi", "toh", "to", "ab", "abhi", "phir", "fir", "waise", "matlab",
     "bahut", "bohot", "bahot", "sabse", "sab", "kuch", "kuchh",
     "accha", "acha", "theek", "thik", "bilkul", "shayad",
 }
 
-# Swear words and unique Roman-script Hindi words that don't overlap with English.
 # Finding even ONE of these means the clip definitely has Hinglish content.
 _UNIQUE_HINGLISH_MARKERS = {
     "hai", "hain", "kya", "kyun", "kyu", "kaise", "kaisa", "kaisi", "kahan",
@@ -67,26 +45,341 @@ _UNIQUE_HINGLISH_MARKERS = {
     "bahut", "bohot", "bahot", "sabse", "kuch", "kuchh", "accha", "acha",
     "theek", "thik", "bilkul", "shayad", "bhenchod", "behanchod", "benchut",
     "banchod", "bc", "mc", "madarchod", "chutiya", "chutiye", "gandu",
-    "loda", "lauda", "bkl", "bsdk", "gand"
+    "loda", "lauda", "bkl", "bsdk", "gand",
 }
 
-# Timely corrections for common romanized Hindi/Hinglish slang & curse words
-_SLANG_CORRECTIONS = {
+
+# ==========================================================
+# LOCAL CORRECTION DICTIONARY (200+ entries)
+# Maps Whisper's common Hinglish misspellings -> correct form
+# ==========================================================
+_LOCAL_CORRECTIONS: dict[str, str] = {
+    # ── Verb forms ──
+    "gya": "gaya",
+    "gyi": "gayi",
+    "gye": "gaye",
+    "krta": "karta",
+    "krte": "karte",
+    "krti": "karti",
+    "krna": "karna",
+    "krke": "karke",
+    "krliya": "kar liya",
+    "krdiya": "kar diya",
+    "hogya": "ho gaya",
+    "hogyi": "ho gayi",
+    "hogye": "ho gaye",
+    "horha": "ho raha",
+    "horhi": "ho rahi",
+    "horhe": "ho rahe",
+    "horha": "ho raha",
+    "hojata": "ho jata",
+    "hojata": "ho jata",
+    "hojaega": "ho jaega",
+    "hojaogi": "ho jaogi",
+    "hojao": "ho jao",
+    "boljao": "bol jao",
+    "chaljao": "chal jao",
+    "dedo": "de do",
+    "lelo": "le lo",
+    "dekhlena": "dekh lena",
+    "sunjao": "sun jao",
+    "jaana": "jana",
+    "jaata": "jata",
+    "jaate": "jate",
+    "jaati": "jati",
+    "jayega": "jaega",
+    "jayegi": "jaegi",
+    "aajao": "aa jao",
+    "aajata": "aa jata",
+    "aajaega": "aa jaega",
+    "chlta": "chalta",
+    "chltay": "chaltay",
+    "chlte": "chalte",
+    "chlti": "chalti",
+    "clna": "chalna",
+    "chal": "chal",
+    "chlega": "chalega",
+    "clega": "chalega",
+    "rkha": "rakha",
+    "rkhna": "rakhna",
+    "rkhte": "rakhte",
+    "rkhti": "rakhti",
+    "rkkha": "rakha",
+    "lega": "lega",
+    "aaega": "aega",
+    "aaogi": "aaogi",
+    "bolega": "bolega",
+    "dekh": "dekh",
+    "dekhega": "dekhega",
+    "dekhle": "dekh le",
+    "sun": "sun",
+    "sunle": "sun le",
+    "sunlena": "sun lena",
+    "puchha": "poocha",
+    "bola": "bola",
+    "boli": "boli",
+    "bole": "bole",
+    "bolna": "bolna",
+    "soch": "soch",
+    "socha": "socha",
+    "sochu": "sochunga",
+    "sochunga": "sochunga",
+    "chhodna": "chhorna",
+    "chhod": "chhor",
+    "chhodunga": "chhorunga",
+    "maarta": "marta",
+    "maarte": "marte",
+    "maari": "mari",
+    "maar": "maar",
+    "maarein": "maarein",
+    "khana": "khana",
+    "khata": "khata",
+    "khate": "khate",
+    "khati": "khati",
+    "khaya": "khaya",
+    "khaoge": "khaoge",
+    "peena": "peena",
+    "piya": "piya",
+    "piye": "piye",
+    "piyo": "piyo",
+
+    # ── Pronouns & basic words ──
+    "mujhe": "mujhe",
+    "mjhe": "mujhe",
+    "mjhse": "mujhse",
+    "mujhse": "mujhse",
+    "hmara": "hamara",
+    "hmari": "hamari",
+    "hmare": "hamare",
+    "tumhara": "tumhara",
+    "tumhari": "tumhari",
+    "tumhare": "tumhare",
+    "tumse": "tumse",
+    "unka": "unka",
+    "unki": "unki",
+    "unke": "unke",
+    "unhe": "unhe",
+    "inhe": "inhe",
+    "inka": "inka",
+    "inki": "inki",
+    "inke": "inke",
+    "isko": "isko",
+    "usko": "usko",
+    "inko": "inko",
+    "unko": "unko",
+    "aapko": "aapko",
+    "mko": "mujhko",
+    "tujhe": "tujhe",
+    "tjhe": "tujhe",
+    "khud": "khud",
+    "apne": "apne",
+    "apna": "apna",
+    "apni": "apni",
+    "koi": "koi",
+    "koyi": "koi",
+    "sab": "sab",
+    "sbhi": "sabhi",
+    "sabhi": "sabhi",
+    "kuch": "kuch",
+    "kuchh": "kuch",
+    "koi": "koi",
+    "har": "har",
+    "hrr": "har",
+    "ek": "ek",
+    "aik": "ek",
+    "do": "do",
+    "teen": "teen",
+    "tin": "teen",
+    "chaar": "chaar",
+    "char": "chaar",
+    "paanch": "paanch",
+    "panch": "paanch",
+
+    # ── Common conversational ──
+    "yrr": "yaar",
+    "yr": "yaar",
+    "yrra": "yaar",
+    "bhai": "bhai",
+    "bhi": "bhi",
+    "bhaiya": "bhaiya",
+    "bro": "bro",
+    "dost": "dost",
+    "ache": "acche",
+    "accha": "accha",
+    "achha": "accha",
+    "acha": "accha",
+    "acha": "accha",
+    "thik": "theek",
+    "thek": "theek",
+    "theek": "theek",
+    "sahi": "sahi",
+    "galat": "galat",
+    "pata": "pata",
+    "ptaa": "pata",
+    "pta": "pata",
+    "matlb": "matlab",
+    "matlab": "matlab",
+    "mtlb": "matlab",
+    "mtlab": "matlab",
+    "bcoz": "because",
+    "coz": "coz",
+    "waise": "waise",
+    "waisa": "waisa",
+    "vaisa": "waisa",
+    "wese": "waise",
+    "sirf": "sirf",
+    "srf": "sirf",
+    "bs": "bas",
+    "bss": "bas",
+    "abhi": "abhi",
+    "abhe": "abhi",
+    "baad": "baad",
+    "phle": "pahle",
+    "pehle": "pahle",
+    "pahle": "pahle",
+    "pehle": "pahle",
+    "pele": "pahle",
+    "shayad": "shayad",
+    "sayad": "shayad",
+    "kyonki": "kyunki",
+    "kynki": "kyunki",
+    "kyuki": "kyunki",
+    "isliye": "isliye",
+    "islie": "isliye",
+    "isiliye": "isliye",
+    "islye": "isliye",
+    "lekin": "lekin",
+    "lkin": "lekin",
+    "magar": "magar",
+    "pr": "par",
+    "prr": "par",
+    "ager": "agar",
+    "agr": "agar",
+    "toh": "toh",
+    "tho": "toh",
+    "to": "toh",
+    "nahi": "nahi",
+    "nai": "nahi",
+    "naa": "na",
+    "haan": "haan",
+    "han": "haan",
+    "hanji": "haan ji",
+    "hnji": "haan ji",
+    "hmm": "hmm",
+    "hm": "hmm",
+    "uff": "uff",
+    "ufff": "uff",
+    "arre": "arre",
+    "are": "arre",
+    "arrey": "arre",
+    "oye": "oye",
+    "oyi": "oye",
+    "oi": "oi",
+    "yaar": "yaar",
+
+    # ── Emotions / reactions ──
+    "maza": "mazaa",
+    "mazaa": "mazaa",
+    "maja": "mazaa",
+    "khushi": "khushi",
+    "dard": "dard",
+    "pyar": "pyaar",
+    "pyaar": "pyaar",
+    "gussa": "gussa",
+    "gusa": "gussa",
+    "tension": "tension",
+    "fikar": "fikar",
+    "dar": "darr",
+    "darr": "darr",
+    "hasna": "hasna",
+    "rona": "rona",
+    "roya": "roya",
+    "hansi": "hansi",
+
+    # ── Time words ──
+    "kal": "kal",
+    "aaj": "aaj",
+    "aj": "aaj",
+    "parso": "parso",
+    "kabhi": "kabhi",
+    "kbhi": "kabhi",
+    "hamesha": "hamesha",
+    "hmsha": "hamesha",
+    "jaldi": "jaldi",
+    "jldi": "jaldi",
+    "dheere": "dheere",
+    "dhire": "dheere",
+    "raat": "raat",
+    "subah": "subah",
+    "sham": "shaam",
+    "shaam": "shaam",
+    "dopahar": "dopahar",
+
+    # ── Common adjectives ──
+    "bada": "bada",
+    "badi": "badi",
+    "bade": "bade",
+    "chota": "chhota",
+    "chhota": "chhota",
+    "choti": "chhoti",
+    "bura": "bura",
+    "buri": "buri",
+    "sundar": "sundar",
+    "khoobsurat": "khoobsurat",
+    "mushkil": "mushkil",
+    "muskil": "mushkil",
+    "aasan": "aasaan",
+    "asan": "aasaan",
+    "asaan": "aasaan",
+    "poora": "poora",
+    "pura": "poora",
+    "sach": "sach",
+    "jhooth": "jhooth",
+    "juth": "jhooth",
+    "pakka": "pakka",
+    "pkka": "pakka",
+
+    # ── Slang / swear corrections ──
     "benchut": "bhenchod",
     "benchood": "bhenchod",
     "banchod": "bhenchod",
     "behanchod": "bhenchod",
+    "bhen": "bhen",
     "lauda": "loda",
     "chutya": "chutiya",
     "madarchut": "madarchod",
+    "saala": "saala",
+    "sala": "saala",
+    "harami": "harami",
+    "haraami": "harami",
+    "kamine": "kamine",
+    "kamina": "kamina",
+    "ullu": "ullu",
+    "bewakoof": "bewakoof",
+    "bakwaas": "bakwaas",
+    "bkws": "bakwaas",
+    "bakar": "bakwas",
+    "nautanki": "nautanki",
+    "noutanki": "nautanki",
+
+    # ── Numbers / filler ──
+    "ek": "ek",
+    "do": "do",
+    "teen": "teen",
+    "chaar": "chaar",
+    "paanch": "paanch",
+    "das": "das",
+    "so": "sau",
+    "hazar": "hazaar",
+    "hazaar": "hazaar",
+    "lakh": "lakh",
+    "crore": "crore",
 }
 
-# Known swear/curse words that we should mask so Ollama doesn't censor or fail
-_SWEAR_WORDS = {
-    "bhenchod", "behanchod", "benchut", "banchod", "bc", "mc", "madarchod",
-    "chutiya", "chutiye", "gandu", "loda", "lauda", "bkl", "bsdk", "gand"
-}
 
+# ==========================================================
+# HINGLISH DETECTION
+# ==========================================================
 
 def is_hinglish(words: list[dict], threshold: float = 0.08) -> bool:
     """
@@ -110,197 +403,70 @@ def is_hinglish(words: list[dict], threshold: float = 0.08) -> bool:
 
 
 # ==========================================================
-# OLLAMA CALL
+# CORRECTION (local dict only — no Ollama, no network)
 # ==========================================================
-
-def _call_ollama(prompt: str, model: str = MODEL_NAME, timeout: int = 180) -> str:
-    payload = json.dumps({
-        "model": model,
-        "prompt": prompt,
-        "stream": False,
-        "options": {"temperature": 0},
-    }).encode("utf-8")
-
-    req = urllib.request.Request(
-        OLLAMA_URL, data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            return data.get("response", "")
-    except urllib.error.URLError as e:
-        raise RuntimeError(
-            f"Could not reach Ollama at {OLLAMA_URL} — is `ollama serve` running "
-            f"and is '{model}' pulled? ({e})"
-        )
-
-
-def _build_prompt(word_texts: list[str]) -> str:
-    numbered = "\n".join(f"{i}: {w}" for i, w in enumerate(word_texts))
-    return f"""You are correcting spelling and casing errors in a Hinglish (Hindi+English, Roman script) video transcript.
-
-Rules — follow EXACTLY:
-- You will be given a numbered list of words, one per line.
-- Return ONLY a JSON array of strings, same length, same order.
-- Fix spelling/casing mistakes only (e.g. "gya" -> "gaya", "hooga" -> "hoga", "thay" -> "the", "benchut" -> "bhenchod").
-- Do NOT merge words, split words, add words, or remove words. Output count MUST equal input count.
-- Do NOT translate anything. Keep Hindi words as Hinglish (Roman script), keep English words as English.
-- If a word is already correct, return it unchanged.
-- CRITICAL SAFETY EXCEPTION: Do NOT censor, sanitize, or replace swear words, curse words, slang, or offensive words (such as "bhenchod", "bkl", "chutiya", etc.) with asterisks or milder terms. You MUST preserve all offensive words exactly as they are in the input, only correcting their romanized spelling/casing.
-
-Input words:
-{numbered}
-
-Output ONLY the JSON array, nothing else."""
-
-
-def _get_available_model() -> str:
-    """Queries local Ollama tags endpoint to find a pulled Qwen or alternative model."""
-    try:
-        import urllib.request
-        import json
-        req = urllib.request.Request("http://localhost:11434/api/tags")
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            models = data.get("models", [])
-            if not models:
-                return MODEL_NAME
-            
-            # Look for any qwen model first
-            for m in models:
-                name = m.get("name", "")
-                if "qwen" in name.lower():
-                    return name
-            
-            # Fallback to the first model found
-            return models[0].get("name", MODEL_NAME)
-    except Exception as e:
-        print(f"[hinglish_corrector] Warning: could not query Ollama tags ({e}), using default model '{MODEL_NAME}'")
-        return MODEL_NAME
-
 
 def correct_words_hinglish(
     words: list[dict],
-    model: str = None,
     force: bool = False,
 ) -> list[dict]:
     """
-    Corrects spelling/casing of a clip's word list using local Qwen (Ollama),
-    ONLY if the clip is detected as Hinglish (unless force=True).
-    Swear words/slang are pre-corrected locally and masked before sending to Ollama
-    to avoid censorship and word-count mismatch.
+    Corrects spelling/casing of a clip's word list using the local dictionary.
+    Only runs if the clip is detected as Hinglish (unless force=True).
+    Timestamps are preserved 1:1 — never changes word count.
     """
     if not words:
         return words
 
     if not force and not is_hinglish(words):
-        return words  # pure English (or too little Hindi to bother) — skip LLM call entirely
+        return words  # pure English — skip
 
-    # Pre-correct slang/swear words locally and mask them for Ollama
-    local_corrected_words = []
-    masked_words = []
-    mask_map = {}  # {idx: corrected_word_value}
-    
-    for idx, w in enumerate(words):
+    result = []
+    for w in words:
         text = w["text"]
         clean = re.sub(r"[^\w]", "", text).lower()
-        
-        is_slang = clean in _SLANG_CORRECTIONS or clean in _SWEAR_WORDS
-        if is_slang:
-            # Correct the slang spelling
-            corrected_text = text
-            if clean in _SLANG_CORRECTIONS:
-                replacement = _SLANG_CORRECTIONS[clean]
-                if text.isupper():
-                    replacement = replacement.upper()
-                elif text[0].isupper():
-                    replacement = replacement.capitalize()
-                corrected_text = re.sub(r"\w+", replacement, text)
-            
-            local_corrected = {**w, "text": corrected_text}
-            local_corrected_words.append(local_corrected)
-            
-            # Mask it with a safe placeholder, preserving punctuation
-            placeholder = f"Word{idx}"
-            masked_text = re.sub(r"\w+", placeholder, text)
-            masked_words.append({**w, "text": masked_text})
-            mask_map[idx] = corrected_text
-        else:
-            local_corrected_words.append(w)
-            masked_words.append(w)
 
-    # If Ollama is disabled, return local corrections immediately
-    if SKIP_OLLAMA:
-        print("[hinglish_corrector] Ollama skipped (SKIP_OLLAMA=True), using local corrections only")
-        return local_corrected_words
+        # Look up in the correction dict
+        corrected_text = text
+        if clean in _LOCAL_CORRECTIONS:
+            replacement = _LOCAL_CORRECTIONS[clean]
+            # Preserve casing style
+            if text.isupper():
+                replacement = replacement.upper()
+            elif text[0].isupper() if text else False:
+                replacement = replacement.capitalize()
+            # Preserve surrounding punctuation (leading/trailing)
+            leading = text[: len(text) - len(text.lstrip(",.!?;:\"'"))]
+            trailing = text[len(text.rstrip(",.!?;:\"'")):]
+            corrected_text = leading + replacement + trailing
 
-    model = model or _get_available_model()
-    word_texts = [w["text"] for w in masked_words]
+        result.append({**w, "text": corrected_text})
 
-    try:
-        response_text = _call_ollama(_build_prompt(word_texts), model=model)
-        corrected = _parse_json_array(response_text)
-    except Exception as e:
-        print(f"[hinglish_corrector] Skipping LLM correction (error): {e}")
-        return local_corrected_words
-
-    if not isinstance(corrected, list) or len(corrected) != len(words):
-        print(
-            f"[hinglish_corrector] Skipping LLM correction (word count mismatch: "
-            f"got {len(corrected) if isinstance(corrected, list) else 'invalid'}, expected {len(words)})"
-        )
-        return local_corrected_words
-
-    # Restore masked slang/swear words back into the final list
-    final_list = []
-    for i, w in enumerate(corrected):
-        text_val = str(w).strip() if w else words[i]["text"]
-        if i in mask_map:
-            text_val = mask_map[i]
-        final_list.append({"text": text_val, "start": words[i]["start"], "end": words[i]["end"]})
-        
-    return final_list
+    return result
 
 
-def _parse_json_array(text: str):
-    """Extracts a JSON array from the model's response, tolerating
-    markdown code fences or extra text around it."""
-    text = text.strip()
-    # strip markdown code fences if present
-    text = re.sub(r"^```(?:json)?\s*", "", text)
-    text = re.sub(r"\s*```$", "", text)
-
-    # if there's leading/trailing chatter, grab the first [...] block
-    match = re.search(r"\[.*\]", text, re.DOTALL)
-    if match:
-        text = match.group(0)
-
-    return json.loads(text)
-
+# ==========================================================
+# BATCH CORRECTION
+# ==========================================================
 
 def correct_clips_batch(
     clip_word_map: dict[str, list[dict]],
-    model: str = None,
 ) -> dict[str, list[dict]]:
     """
     Runs correct_words_hinglish over multiple clips' word lists.
     clip_word_map: {clip_path_or_id: words_list}
     Returns a new dict, same keys, corrected (or unchanged) word lists.
     """
-    model = model or _get_available_model()
     results = {}
     total = len(clip_word_map)
     print(f"\n==============================")
-    print(f"Hinglish correction pass — {total} clip(s)")
+    print(f"Hinglish correction pass — {total} clip(s)  [local dict only]")
     print(f"==============================\n")
 
     for i, (key, words) in enumerate(clip_word_map.items(), start=1):
         hinglish = is_hinglish(words)
-        print(f"[{i}/{total}] {key}  —  {'Hinglish, correcting...' if hinglish else 'English, skipping'}")
-        results[key] = correct_words_hinglish(words, model=model)
+        print(f"[{i}/{total}] {'Hinglish detected, correcting...' if hinglish else 'English clip, skipping'}")
+        results[key] = correct_words_hinglish(words)
 
     return results
 
@@ -311,11 +477,15 @@ if __name__ == "__main__":
         {"text": "ho", "start": 0.3, "end": 0.5},
         {"text": "gya", "start": 0.5, "end": 0.7},
         {"text": "ab", "start": 0.7, "end": 0.9},
-        {"text": "subha", "start": 0.9, "end": 1.2},
-        {"text": "jab", "start": 1.2, "end": 1.4},
-        {"text": "uthne", "start": 1.4, "end": 1.7},
-        {"text": "wale", "start": 1.7, "end": 1.9},
-        {"text": "hai", "start": 1.9, "end": 2.1},
+        {"text": "subah", "start": 0.9, "end": 1.2},
+        {"text": "jaldi", "start": 1.2, "end": 1.4},
+        {"text": "kr", "start": 1.4, "end": 1.6},
+        {"text": "uthne", "start": 1.6, "end": 1.9},
+        {"text": "wale", "start": 1.9, "end": 2.1},
+        {"text": "hai", "start": 2.1, "end": 2.3},
+        {"text": "yrr", "start": 2.3, "end": 2.5},
+        {"text": "kya", "start": 2.5, "end": 2.7},
+        {"text": "matlb", "start": 2.7, "end": 2.9},
     ]
 
     print("Is Hinglish?", is_hinglish(test_words))
