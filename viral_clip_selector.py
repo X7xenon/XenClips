@@ -67,7 +67,8 @@ Task:
 
 Rules:
 - Extract EXACTLY {num_clips} viral clips. Not more, not less.
-{duration_rule}- No overlap between clips
+{duration_rule}- STRICTLY read the entire video transcript from start to finish.
+- ONLY provide the absolute most viral parts, even if they are repeated or overlap heavily with each other. Quality is priority over avoiding overlaps.
 - Focus ONLY on elite, high-retention moments that will hook viewers in the first 3 seconds and keep them watching until the end.
 - Classify each clip's segment type: "viral" (default), "qa" (clear question+answer), "chapter_boundary" (topic shift), "product_mention" (brand/product named)
 - CRITICAL: If the transcript is in Hindi or Hinglish, you MUST write the "hook_text" in Hinglish (Roman script Hindi) instead of English.
