@@ -1078,7 +1078,7 @@ function UploadPage() {
                     className="w-full"
                   />
                   <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>3 (Faster)</span>
+                    <span>1 (Fastest)</span>
                     <span>15 (Max)</span>
                   </div>
                 </div>
