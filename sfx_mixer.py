@@ -22,11 +22,11 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # basename, assign that file to the category.
 # ---------------------------------------------------------------------------
 SFX_CATEGORIES: dict[str, list[str]] = {
-    "whoosh": ["whoosh", "run-vine", "switch"],
-    "ding": ["notification", "ding", "camera", "tudum"],
-    "dramatic_hit": ["cinematic-suspense", "shocking", "vine-boom", "dramatic"],
+    "whoosh": ["whoosh", "run-vine", "switch", "sweep", "air"],
+    "ding": ["notification", "ding", "tudum", "bell", "kaching", "apple pay", "cash-register"],
+    "dramatic_hit": ["cinematic-suspense", "shocking", "vine-boom", "dramatic", "impact", "braam", "trailer hit"],
     "laugh": ["cat-laugh", "eh-eh", "fahh", "yooo"],
-    "reaction": ["anime-wow", "wow-kya", "studio-audience", "rizz"],
+    "reaction": ["anime-wow", "wow-kya", "studio-audience", "rizz", "applause", "cheer"],
     "meme": [
         "john-cena", "gta-san", "dexter", "drip-goku",
         "galaxy", "spiderman", "kanchana",
@@ -40,25 +40,38 @@ SFX_CATEGORIES: dict[str, list[str]] = {
     "pop": [
         "maro-jump", "cartoonslip", "slap",
         "mac-quack", "deepbark", "meow",
+        "jug-pop", "pop up", "minimal-pop",
     ],
     "censor": ["censor-beep", "windows-error"],
-    "music": ["the-weeknd", "lights-action", "sad-meow"],
+    "music": ["the-weeknd", "lights-action", "sad-meow", "orchestra-transition"],
+    "ui_click": ["click", "mouse", "select", "ui confirm", "radio beep", "digital counter", "flicker", "snap", "data ui"],
+    "typing": ["typing", "keyboard", "tiping"],
+    "camera": ["camera", "shutter", "slr", "digital zoom"],
+    "riser": ["riser", "stutter"],
+    "mechanical": ["gear shift", "ratchet", "gun reload", "middle gear"],
+    "glitch": ["glitch", "static"],
+    "hum": ["hum"],
+    "clock": ["clock ticking"],
 }
 
 # ---------------------------------------------------------------------------
 # Per-template default SFX palettes
 # ---------------------------------------------------------------------------
 TEMPLATE_SFX_DEFAULTS: dict[str, list[str]] = {
-    "alex_hormozi": ["dramatic_hit", "whoosh"],
-    "mrbeast": ["dramatic_hit", "ding", "whoosh"],
-    "iman_gadzhi": ["ding"],
-    "podcast": [],
-    "gaming": ["meme", "reaction", "pop"],
-    "motivational": ["dramatic_hit", "whoosh"],
-    "tiktok_viral": ["reaction", "pop", "whoosh"],
-    "premium_cinematic": ["dramatic_hit"],
-    "minimal_clean": [],
-    "ali_abdaal": ["ding"],
+    "alex_hormozi": ["dramatic_hit", "whoosh", "ui_click", "typing", "pop"],
+    "mrbeast": ["dramatic_hit", "ding", "whoosh", "pop", "riser"],
+    "iman_gadzhi": ["ding", "camera", "riser", "mechanical", "whoosh"],
+    "podcast": ["ui_click"],
+    "gaming": ["meme", "reaction", "pop", "glitch", "ui_click"],
+    "motivational": ["dramatic_hit", "whoosh", "riser"],
+    "tiktok_viral": ["reaction", "pop", "whoosh", "ding", "ui_click"],
+    "premium_cinematic": ["dramatic_hit", "camera", "riser", "whoosh", "mechanical"],
+    "cyberpunk": ["glitch", "hum", "mechanical", "dramatic_hit"],
+    "hacker": ["typing", "glitch", "ui_click"],
+    "news_flash": ["camera", "ui_click", "dramatic_hit"],
+    "typewriter": ["typing", "ding"],
+    "minimal_clean": ["ui_click", "pop"],
+    "ali_abdaal": ["ding", "pop", "ui_click", "typing"],
 }
 
 

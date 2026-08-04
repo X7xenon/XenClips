@@ -97,13 +97,21 @@ Here are 15 hook text templates to draw inspiration from. Pick the one that fits
 14. "Watch this before you [Action] ⚠️"
 15. "The unspoken rule of [Topic] 📖"
 
-For SFX cues, suggest 0–3 sound effect trigger points per clip. Use these types:
+For SFX cues, suggest 0-5 sound effect trigger points per clip. Use these types:
 - "whoosh" — on fast cuts, transitions, or emphasis
 - "ding" — on key numbers, reveals, or important points
 - "dramatic_hit" — on punchlines, shocking reveals, or climaxes
 - "reaction" — on funny/surprising moments
 - "pop" — on quick visual emphasis
 - "laugh" — on genuinely funny moments
+- "ui_click" — on UI elements, mouse clicks, data changes, selections
+- "typing" — on typing or text appearing
+- "camera" — on photos, zooming, or shutter sounds
+- "riser" — building tension before a drop or reveal
+- "mechanical" — on mechanical actions, gears, weapons
+- "glitch" — on errors, static, or cyber-style visuals
+- "hum" — on futuristic or continuous suspense moments
+- "clock" — on ticking clocks or running out of time
 
 Return ONLY a valid JSON object. No markdown fences, no explanation, no intro text.
 
