@@ -84,6 +84,9 @@ npm run dev
 
 Your web dashboard will now be running on `http://localhost:8080` (enforced by Vite).
 
+> [!TIP]
+> **One-Click Launcher**: You can compile a unified `.exe` using PyInstaller to automatically start both the FastAPI backend and the Vite frontend simultaneously, and open your browser window directly to the dashboard.
+
 ---
 
 ## 🛠️ Usage
