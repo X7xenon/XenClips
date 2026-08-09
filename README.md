@@ -23,7 +23,7 @@ Featuring an incredibly sleek, real-time local web dashboard, XenClips orchestra
 - **🧠 Intelligent Viral Detection**: Uses **Google Gemini 2.5 Flash** (with **NVIDIA Nemotron 3 Ultra / 4** fallback) to deeply analyze transcripts and find high-retention, high-emotion moments.
 - **🎙️ State-of-the-art Transcription**: Employs **Faster-Whisper large-v3-turbo** for rapid, accurate audio transcription and precise word-level timestamps.
 - **✍️ Hinglish Smart Correction**: A local **Qwen** model (via Ollama) intelligently corrects Hinglish, slang, and code-switched phrases instantly while preserving timestamps.
-- **🎯 Dynamic Face Tracking (Auto-Crop)**: Utilizes **YOLOv8** to track faces smoothly and dynamically crop horizontal videos to vertical 9:16 aspect ratios.
+- **🎯 Dynamic Cropping**: Automatically handles smart center-cropping to perfectly fit horizontal videos into vertical 9:16 aspect ratios.
 - **🎬 Professional Subtitles**: Generates complex `.ass` and `.srt` caption templates with word-by-word highlights, animations, and emojis—just like top-tier editors.
 - **⏱️ Real-time Processing Estimates**: Advanced ETA widget that tracks processing times for downloading, transcription, clip selection, and rendering steps.
 
@@ -60,11 +60,7 @@ pip install -r requirements.txt
 ### 📥 2. Download AI Models (Important!)
 Because AI models are too large for GitHub, you must download them manually into your project directory before running the app.
 
-1. **YOLOv8 Auto-Cropping Model (`yolov8n.pt`)**:
-   - Download the model from the official ultralytics release or let the app auto-download it on first run (if internet is available).
-   - Place `yolov8n.pt` in the root folder `XenClips/`.
-
-2. **Whisper / Alignment Model (`model/model.bin`)**:
+1. **Whisper / Alignment Model (`model/model.bin`)**:
    - If using local Whisper, ensure your `.bin` files and configuration (`config.json`, `tokenizer.json`, etc.) are placed inside the `model/` folder.
 
 ### 3. Start Backend Server
