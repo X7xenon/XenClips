@@ -11,7 +11,7 @@ import {
   Layout,
   Keyboard,
   Smartphone,
-  Bookmark,
+
 } from "lucide-react";
 import {
   getApiBase,
@@ -49,13 +49,7 @@ function SettingsPage() {
   const [geminiModel, setGeminiModel] = useState<string>("gemini-2.5-flash-lite");
   const [newKey, setNewKey] = useState("");
 
-  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
-  const [whatsappNumber, setWhatsappNumber] = useState("");
-  const [whatsappConnected, setWhatsappConnected] = useState<boolean | null>(null);
-  const [whatsappQr, setWhatsappQr] = useState<string | null>(null);
-  const [whatsappTesting, setWhatsappTesting] = useState(false);
 
-  const [presets, setPresets] = useState<Record<string, Record<string, any>>>({});
 
   useEffect(() => {
     api
@@ -67,53 +61,7 @@ function SettingsPage() {
       })
       .catch((e) => console.error("Failed to load Gemini settings", e));
 
-    api
-      .getAppSettings()
-      .then((data) => {
-        setWhatsappEnabled(data.whatsapp_enabled);
-        setWhatsappNumber(data.whatsapp_number);
-      })
-      .catch((e) => console.error("Failed to load App settings", e));
-
-    api
-      .getWhatsappStatus()
-      .then((data) => {
-        setWhatsappConnected(data.connected);
-      })
-      .catch((e) => console.error("Failed to load WhatsApp status", e));
-
-    api
-      .getPresets()
-      .then(setPresets)
-      .catch((e) => console.error("Failed to load presets", e));
   }, []);
-
-  const fetchQr = async () => {
-    try {
-      const data = await api.getWhatsappQr();
-      if (data.connected) {
-        setWhatsappConnected(true);
-      } else if (data.qr) {
-        setWhatsappQr(data.qr);
-      } else {
-        alert("QR not ready yet, make sure the bridge is running.");
-      }
-    } catch (e) {
-      alert("Failed to fetch QR code.");
-    }
-  };
-
-  const testWhatsapp = async () => {
-    setWhatsappTesting(true);
-    try {
-      await api.testWhatsapp();
-      alert("Test message sent successfully!");
-    } catch (e: any) {
-      alert(e.message || "Failed to send test message");
-    } finally {
-      setWhatsappTesting(false);
-    }
-  };
 
   const save = async () => {
     setApiBase(apiBase.trim());
@@ -125,7 +73,6 @@ function SettingsPage() {
         limitPerKey,
         geminiModel,
       );
-      await api.updateAppSettings(whatsappEnabled, whatsappNumber);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {
@@ -159,17 +106,7 @@ function SettingsPage() {
     }
   };
 
-  const deletePreset = async (presetId: string) => {
-    if (!window.confirm(`Delete preset "${presetId}" forever?`)) return;
-    try {
-      await api.deletePreset(presetId);
-      const copy = { ...presets };
-      delete copy[presetId];
-      setPresets(copy);
-    } catch (e) {
-      alert("Failed to delete preset: " + (e as Error).message);
-    }
-  };
+
 
   return (
     <div className="p-8 pb-20 max-w-4xl mx-auto animate-fade-in-up">
@@ -251,44 +188,52 @@ function SettingsPage() {
                 </div>
               </div>
 
-              {/* Whisper model */}
+              {/* Transcription Model — fixed, read-only */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <Server className="w-4 h-4 text-gray-400" />
                   <span className="label-section !mb-0 text-white">Transcription Model</span>
                 </div>
-                <div className="flex flex-col gap-2">
-                  {(
-                    [
-                      {
-                        value: "small",
-                        label: "Whisper Small",
-                        hint: "Extremely fast, decent accuracy",
-                      },
-                      {
-                        value: "medium",
-                        label: "Whisper Medium",
-                        hint: "Slower, studio-grade accuracy",
-                      },
-                    ] as { value: Settings["whisper_model"]; label: string; hint: string }[]
-                  ).map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => setS({ ...s, whisper_model: opt.value })}
-                      className={`flex flex-col items-start px-4 py-3 rounded-xl border transition-all duration-300 text-left ${
-                        s.whisper_model === opt.value
-                          ? "bg-[rgba(138,43,226,0.15)] border-[#8A2BE2] shadow-[inset_0_0_20px_rgba(138,43,226,0.15)]"
-                          : "bg-[rgba(255,255,255,0.02)] border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.2)]"
-                      }`}
+                <div
+                  className="rounded-xl border px-4 py-3 flex flex-col gap-2"
+                  style={{
+                    background: "rgba(138,43,226,0.07)",
+                    border: "1px solid rgba(138,43,226,0.3)",
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <span
+                      className="font-display font-bold text-sm tracking-wide text-white"
                     >
-                      <span
-                        className={`font-display font-bold text-sm tracking-wide ${s.whisper_model === opt.value ? "text-white" : "text-gray-300"}`}
-                      >
-                        {opt.label}
-                      </span>
-                      <span className="text-[10px] text-gray-500 font-medium">{opt.hint}</span>
-                    </button>
-                  ))}
+                      Faster-Whisper large-v3-turbo
+                    </span>
+                    <span
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                      style={{
+                        background: "rgba(0,240,255,0.1)",
+                        color: "#00F0FF",
+                        border: "1px solid rgba(0,240,255,0.2)",
+                        letterSpacing: "0.08em",
+                      }}
+                    >
+                      ACTIVE
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 mt-1">
+                    {[
+                      { label: "Device", value: "CPU" },
+                      { label: "Precision", value: "int8" },
+                      { label: "Mode", value: "Offline" },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="flex flex-col">
+                        <span style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>{label}</span>
+                        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.75)", fontWeight: 600, marginTop: 1 }}>{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", marginTop: 4, lineHeight: 1.5 }}>
+                    Model is fixed to the local CT2 build in <code style={{ color: "rgba(0,240,255,0.6)" }}>./model/</code>. No network required.
+                  </p>
                 </div>
               </div>
             </div>
@@ -447,136 +392,6 @@ function SettingsPage() {
           </div>
         </div>
 
-        {/* ── WhatsApp Notifications Card ── */}
-        <div className="glass-panel overflow-hidden border-[#25D366]/30 shadow-[0_10px_40px_rgba(37,211,102,0.05)] relative">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-[#25D366] opacity-5 blur-[100px] pointer-events-none rounded-full" />
-          <div className="px-6 py-4 border-b border-[#25D366]/10 bg-[rgba(37,211,102,0.03)] flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-[#25D366]/10 border border-[#25D366]/20 flex items-center justify-center">
-              <Smartphone className="w-4 h-4 text-[#25D366]" />
-            </div>
-            <h2 className="font-display text-lg font-bold uppercase tracking-widest text-[#25D366]">
-              WhatsApp Notifications
-            </h2>
-          </div>
-
-          <div className="p-6 bg-[rgba(20,20,25,0.4)] space-y-6">
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={whatsappEnabled}
-                  onChange={(e) => setWhatsappEnabled(e.target.checked)}
-                  className="w-5 h-5 rounded border-gray-600 text-[#25D366] focus:ring-[#25D366] bg-[rgba(255,255,255,0.05)]"
-                />
-                <span className="text-white font-bold tracking-wide">Enable WhatsApp Alerts</span>
-              </label>
-            </div>
-
-            <div className="max-w-xl">
-              <label className="label-section !mb-2 text-white block">WhatsApp Number</label>
-              <input
-                type="text"
-                value={whatsappNumber}
-                onChange={(e) => setWhatsappNumber(e.target.value)}
-                placeholder="+1234567890"
-                className="w-full text-sm font-mono text-[#25D366] bg-[rgba(0,0,0,0.2)] border border-[rgba(255,255,255,0.1)] rounded p-2"
-                disabled={!whatsappEnabled}
-              />
-              <p className="text-[11px] text-gray-500 mt-2 font-medium">
-                Include the country code (e.g. +91 for India). Requires CreatorOS Bridge to be
-                running on port 3001.
-              </p>
-            </div>
-
-            {whatsappEnabled && (
-              <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
-                <div className="flex items-center gap-4">
-                  {whatsappConnected === true ? (
-                    <>
-                      <div className="flex items-center gap-2 text-sm font-bold text-[#25D366]">
-                        <CheckCircle2 className="w-5 h-5" />
-                        Connected to WhatsApp
-                      </div>
-                      <button
-                        onClick={testWhatsapp}
-                        disabled={whatsappTesting || !whatsappNumber}
-                        className="flex items-center justify-center px-6 py-2 rounded-lg font-bold tracking-wide transition-all bg-[#25D366]/20 text-[#25D366] border border-[#25D366]/50 hover:bg-[#25D366] hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {whatsappTesting ? "Sending..." : "Test Connection"}
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-2 text-sm font-bold text-gray-400">
-                        <AlertTriangle className="w-5 h-5" />
-                        Not Connected
-                      </div>
-                      <button
-                        onClick={fetchQr}
-                        className="flex items-center justify-center px-6 py-2 rounded-lg font-bold tracking-wide transition-all bg-[#25D366]/20 text-[#25D366] border border-[#25D366]/50 hover:bg-[#25D366] hover:text-white"
-                      >
-                        Connect (Show QR)
-                      </button>
-                    </>
-                  )}
-                </div>
-                {whatsappQr && !whatsappConnected && (
-                  <div className="mt-4 p-4 bg-black/40 rounded-lg inline-block border border-[rgba(255,255,255,0.1)]">
-                    <p className="text-sm text-gray-300 mb-2 font-medium">
-                      Scan this QR code with your WhatsApp app:
-                    </p>
-                    <img
-                      src={whatsappQr}
-                      alt="WhatsApp QR Code"
-                      className="w-64 h-64 rounded bg-white p-2"
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── Global Presets Card ── */}
-        <div className="glass-panel overflow-hidden">
-          <div className="px-6 py-4 border-b border-[rgba(255,255,255,0.05)] bg-[rgba(10,10,15,0.4)] flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-[rgba(255,165,0,0.1)] border border-[rgba(255,165,0,0.2)] flex items-center justify-center">
-              <Bookmark className="w-4 h-4 text-[#FFA500]" />
-            </div>
-            <h2 className="font-display text-lg font-bold uppercase tracking-widest text-white">
-              Global Presets
-            </h2>
-          </div>
-
-          <div className="p-6 bg-[rgba(20,20,25,0.2)]">
-            {Object.keys(presets).length === 0 ? (
-              <p className="text-sm text-gray-500">No presets saved yet. Save presets from the Upload page.</p>
-            ) : (
-              <div className="space-y-2 max-w-xl">
-                {Object.entries(presets).map(([pId, data]) => (
-                  <div
-                    key={pId}
-                    className="flex items-center justify-between px-4 py-3 bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg"
-                  >
-                    <div>
-                      <div className="font-bold text-sm text-[#FFA500]">{pId}</div>
-                      <div className="text-xs mt-1 font-medium text-gray-500">
-                        {data.layouts?.length || 0} layouts, {data.templates?.length || 0} templates
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => deletePreset(pId)}
-                      className="p-2 hover:bg-[rgba(255,42,95,0.1)] hover:text-[#FF2A5F] text-gray-500 rounded-lg transition-colors"
-                      title="Delete Preset"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
 
         {/* ── Keyboard Shortcuts Card ── */}
         <div className="glass-panel overflow-hidden">

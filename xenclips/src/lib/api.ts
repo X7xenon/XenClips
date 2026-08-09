@@ -69,7 +69,7 @@ export interface Clip {
 }
 
 export type LayoutTemplate =
-  "full_vertical" | "bw_letterbox" | "blur_bg" | "streamer" | "original" | "vertical_no_tracking";
+  "bw_letterbox" | "blur_bg" | "streamer" | "original" | "vertical_no_tracking";
 
 export type CaptionTemplate =
   | "alex_hormozi"
@@ -115,7 +115,7 @@ export interface ClipSettings {
 export const DEFAULT_CLIP_SETTINGS: ClipSettings = {
   template: "alex_hormozi",
   position: "bottom",
-  layout: "full_vertical",
+  layout: "bw_letterbox",
   hook_text_enabled: true,
   hook_text: "",
   hook_style: "default",
@@ -173,7 +173,6 @@ export function saveBulkSettings(s: ClipSettings) {
 
 export interface Settings {
   encoder: "auto" | "qsv" | "cpu";
-  whisper_model: "small" | "medium";
   default_layout: LayoutTemplate;
 }
 
@@ -188,15 +187,8 @@ export interface GeminiSettings {
   model: string;
 }
 
-export interface AppSettings {
-  whatsapp_enabled: boolean;
-  whatsapp_number: string;
-}
 
-export interface Preset {
-  preset_id: string;
-  data: Record<string, any>;
-}
+
 
 export const api = {
   process: (body: {
@@ -208,22 +200,11 @@ export const api = {
     font_size?: number;
     target_duration?: number;
     num_clips?: number;
-    sfx_enabled?: boolean;
-    sfx_volume?: number;
-    sfx_pack?: string;
     smart_zoom_enabled?: boolean;
     smart_zoom_style?: "smooth" | "punch" | "cinematic" | "dynamic";
     smart_zoom_intensity?: "low" | "medium" | "high";
     speed_ramp_enabled?: boolean;
     speed_ramp_max?: number;
-    watermark_enabled?: boolean;
-    watermark_type?: "png" | "svg" | "text" | "logo_text";
-    watermark_text?: string;
-    watermark_position?: "top_left" | "top_right" | "bottom_left" | "bottom_right" | "center";
-    watermark_opacity?: number;
-    watermark_scale?: number;
-    watermark_margin?: number;
-    watermark_animation?: "none" | "fade_in" | "fade_out" | "slide_in";
   }) =>
     request<{ job_id: string }>("/process", {
       method: "POST",
@@ -253,15 +234,6 @@ export const api = {
       smart_zoom_intensity?: "low" | "medium" | "high";
       speed_ramp_enabled?: boolean;
       speed_ramp_max?: number;
-      watermark_enabled?: boolean;
-      watermark_type?: "png" | "svg" | "text" | "logo_text";
-      watermark_text?: string;
-      watermark_position?: "top_left" | "top_right" | "bottom_left" | "bottom_right" | "center";
-      watermark_opacity?: number;
-      watermark_scale?: number;
-      watermark_margin?: number;
-      watermark_animation?: "none" | "fade_in" | "fade_out" | "slide_in";
-      watermark_file?: File;
     },
   ) => {
     const fd = new FormData();
@@ -273,9 +245,6 @@ export const api = {
     if (opts.font_size != null) fd.append("font_size", String(opts.font_size));
     if (opts.target_duration != null) fd.append("target_duration", String(opts.target_duration));
     if (opts.num_clips != null) fd.append("num_clips", String(opts.num_clips));
-    if (opts.sfx_enabled != null) fd.append("sfx_enabled", String(opts.sfx_enabled));
-    if (opts.sfx_volume != null) fd.append("sfx_volume", String(opts.sfx_volume));
-    if (opts.sfx_pack != null) fd.append("sfx_pack", opts.sfx_pack);
     if (opts.generate_captions != null)
       fd.append("generate_captions", String(opts.generate_captions));
     if (opts.hook_style != null) fd.append("hook_style", opts.hook_style);
@@ -290,18 +259,6 @@ export const api = {
     if (opts.speed_ramp_enabled != null)
       fd.append("speed_ramp_enabled", String(opts.speed_ramp_enabled));
     if (opts.speed_ramp_max != null) fd.append("speed_ramp_max", String(opts.speed_ramp_max));
-    if (opts.watermark_enabled != null)
-      fd.append("watermark_enabled", String(opts.watermark_enabled));
-    if (opts.watermark_type != null) fd.append("watermark_type", opts.watermark_type);
-    if (opts.watermark_text != null) fd.append("watermark_text", opts.watermark_text);
-    if (opts.watermark_position != null) fd.append("watermark_position", opts.watermark_position);
-    if (opts.watermark_opacity != null)
-      fd.append("watermark_opacity", String(opts.watermark_opacity));
-    if (opts.watermark_scale != null) fd.append("watermark_scale", String(opts.watermark_scale));
-    if (opts.watermark_margin != null) fd.append("watermark_margin", String(opts.watermark_margin));
-    if (opts.watermark_animation != null)
-      fd.append("watermark_animation", opts.watermark_animation);
-    if (opts.watermark_file != null) fd.append("watermark_file", opts.watermark_file);
     return request<{ job_id: string }>("/process", { method: "POST", body: fd });
   },
 
@@ -334,41 +291,19 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ keys, limit_per_key, model }),
     }),
-  getAppSettings: () => request<AppSettings>("/app-settings"),
-  updateAppSettings: (whatsapp_enabled: boolean, whatsapp_number: string) =>
-    request<{ status: string }>("/app-settings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ whatsapp_enabled, whatsapp_number }),
-    }),
-  getWhatsappStatus: () => request<{ connected: boolean; error?: string }>("/whatsapp/status"),
-  getWhatsappQr: () =>
-    request<{ connected: boolean; qr: string | null; error?: string; message?: string }>(
-      "/whatsapp/qr",
-    ),
-  testWhatsapp: () => request<{ status: string }>("/whatsapp/test", { method: "POST" }),
+
   jobs: () => request<any[]>("/jobs"),
   cancelJob: (jobId: string) =>
     request<{ status: string }>(`/jobs/${jobId}/cancel`, { method: "POST" }),
   removeJob: (jobId: string) => request<{ status: string }>(`/jobs/${jobId}`, { method: "DELETE" }),
   shutdown: () => request<{ status: string }>("/shutdown", { method: "POST" }),
-  getPresets: () => request<Record<string, Record<string, any>>>("/presets"),
-  savePreset: (preset_id: string, data: Record<string, any>) =>
-    request<{ status: string }>("/presets", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ preset_id, data }),
-    }),
-  deletePreset: (preset_id: string) =>
-    request<{ status: string }>(`/presets/${preset_id}`, { method: "DELETE" }),
 };
 
 // Local settings (persisted client-side; backend can also expose /settings later)
 const SETTINGS_KEY = "clipper.settings";
 export const DEFAULT_SETTINGS: Settings = {
   encoder: "auto",
-  whisper_model: "small",
-  default_layout: "full_vertical",
+  default_layout: "bw_letterbox",
 };
 export function getSettings(): Settings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;

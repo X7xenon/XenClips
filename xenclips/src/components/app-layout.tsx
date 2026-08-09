@@ -7,25 +7,39 @@ import {
   Scissors,
   Sparkles,
   Terminal,
-  Send,
-  Users,
   History as HistoryIcon,
-  Globe,
+  Info,
   Power,
+  BookOpen,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 
+const pageTitles: Record<string, string> = {
+  "/": "Upload — XenClips",
+  "/clips": "Clips — XenClips",
+  "/history": "History — XenClips",
+  "/settings": "Settings — XenClips",
+  "/guide": "Guide — XenClips",
+  "/about": "About — XenClips",
+};
+
+function getPageTitle(pathname: string): string {
+  if (pageTitles[pathname]) return pageTitles[pathname];
+  if (pathname.startsWith("/clips/")) return "Clip Editor — XenClips";
+  return "XenClips";
+}
+
 const nav = [
   { to: "/", label: "Upload", icon: Upload, exact: true },
   { to: "/clips", label: "Clips", icon: Film, exact: false },
   { to: "/history", label: "History", icon: HistoryIcon, exact: false },
-  { to: "/publish", label: "Publish", icon: Send, exact: false },
   { to: "/settings", label: "Settings", icon: SettingsIcon, exact: false },
-  { to: "/accounts", label: "Accounts", icon: Users, exact: false },
-  { to: "/remote", label: "Remote", icon: Globe, exact: false },
+  { to: "/guide", label: "Guide", icon: BookOpen, exact: false },
+  { to: "/about", label: "About", icon: Info, exact: false },
 ];
+
 
 export function AppLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -37,6 +51,12 @@ export function AppLayout() {
 
   const navigate = useNavigate();
   const { matchesShortcut } = useShortcuts();
+
+  // Sync browser tab title with active route
+  useEffect(() => {
+    document.title = getPageTitle(pathname);
+  }, [pathname]);
+
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -170,6 +190,17 @@ export function AppLayout() {
                   }}
                 >
                   STUDIO
+                </div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: "#8A2BE2",
+                    letterSpacing: "0.18em",
+                    fontWeight: 700,
+                    marginTop: 2,
+                  }}
+                >
+                  BY XENON
                 </div>
               </div>
             </div>

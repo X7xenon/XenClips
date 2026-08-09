@@ -47,7 +47,7 @@ def transcript_to_text(transcript):
 # PROMPT
 # ==========================
 
-def build_prompt(text, target_duration=None, num_clips=6, clip_vibe="viral", hook_vibe="clickbait", hook_lang="auto", creator_name=None):
+def build_prompt(text, target_duration=None, num_clips=6, clip_vibe="viral", hook_vibe="clickbait", hook_lang="auto"):
     duration_rule = ""
     if target_duration:
         duration_rule = f"- Each clip should be close to {target_duration} seconds (±10s tolerance)\n"
@@ -62,10 +62,6 @@ def build_prompt(text, target_duration=None, num_clips=6, clip_vibe="viral", hoo
     else:  # auto
         lang_rule = "- If the transcript is in Hindi or Hinglish, write the \"hook_text\" in Hinglish (Roman script). Otherwise write it in English."
 
-    # Build creator name instruction
-    creator_rule = ""
-    if creator_name:
-        creator_rule = f'\n- IMPORTANT: You may naturally include the creator name \"{creator_name}\" in the hook_text where it makes it more viral or personal (e.g. "Yeh {creator_name} ne kya bola 🤯"). Do NOT force it in every hook — only use it when it genuinely improves virality.'
 
     return f"""
 You are an elite, world-class YouTube Shorts & TikTok editor and retention strategist.
@@ -84,7 +80,7 @@ Rules:
 - ONLY provide the absolute most viral parts, even if they are repeated or overlap heavily with each other. Quality is priority over avoiding overlaps.
 - Focus ONLY on elite, high-retention moments that will hook viewers in the first 3 seconds and keep them watching until the end.
 - Classify each clip's segment type: "viral" (default), "qa" (clear question+answer), "chapter_boundary" (topic shift), "product_mention" (brand/product named)
-- {lang_rule}{creator_rule}
+- {lang_rule}
 
 Prioritize (in order of viral potential) based on the "{clip_vibe}" vibe:
 - If "funny": Look for jokes, humorous situations, hilarious reactions, and comedic timing.
@@ -164,7 +160,7 @@ IMPORTANT:
 - "hook_text" is the attention-grabbing opening line viewers see first, and MUST include an emoji.
 
 Transcript (Read ENTIRELY before answering):
-{{text}}
+{text}
 """
 
 
@@ -238,11 +234,11 @@ def extract_json(text):
 # MAIN FUNCTION
 # ==========================
 
-def generate_viral_clips(transcript_path, target_duration=None, num_clips=6, clip_vibe="viral", hook_vibe="clickbait", hook_lang="auto", creator_name=None):
+def generate_viral_clips(transcript_path, target_duration=None, num_clips=6, clip_vibe="viral", hook_vibe="clickbait", hook_lang="auto"):
     transcript = load_transcript(transcript_path)
     text = transcript_to_text(transcript)
 
-    prompt = build_prompt(text, target_duration=target_duration, num_clips=num_clips, clip_vibe=clip_vibe, hook_vibe=hook_vibe, hook_lang=hook_lang, creator_name=creator_name)
+    prompt = build_prompt(text, target_duration=target_duration, num_clips=num_clips, clip_vibe=clip_vibe, hook_vibe=hook_vibe, hook_lang=hook_lang)
 
     print("\nAnalyzing transcript for viral moments...\n")
 

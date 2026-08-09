@@ -39,3 +39,6 @@ model/model.bin
 gemini_usage.json
 db.json
 cookies.txt
+settings.json
+clips/
+*.png

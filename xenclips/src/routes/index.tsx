@@ -11,6 +11,8 @@ import {
   Zap,
   Bookmark,
   Save,
+  Clock,
+  Timer,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -126,6 +128,7 @@ function formatBytes(bytes: number) {
 const ACTIVE_JOB_KEY = "clipper.activeJobId";
 function saveActiveJob(jobId: string) {
   localStorage.setItem(ACTIVE_JOB_KEY, JSON.stringify({ jobId, ts: Date.now() }));
+  setCurrentJob(jobId);
 }
 function loadActiveJob(): string | null {
   if (typeof window === "undefined") return null;
@@ -151,12 +154,7 @@ function UploadPage() {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [presets, setPresets] = useState<Record<string, Record<string, any>>>({});
-  const [selectedPreset, setSelectedPreset] = useState<string>("");
 
-  useEffect(() => {
-    api.getPresets().then((data) => setPresets(data)).catch((e) => console.error(e));
-  }, []);
 
   const [layouts, setLayouts] = useState<LayoutTemplate[]>(() => {
     if (typeof window !== "undefined") {
@@ -244,24 +242,12 @@ function UploadPage() {
       return Number(localStorage.getItem("upload.numClips") || "6");
     return 6;
   });
-  const [sfxEnabled, setSfxEnabled] = useState(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("upload.sfxEnabled");
-      if (saved != null) return saved === "true";
-    }
-    return true;
-  });
   const [fadeEnabled, setFadeEnabled] = useState(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("upload.fadeEnabled");
       if (saved != null) return saved === "true";
     }
     return true;
-  });
-  const [sfxVolume, setSfxVolume] = useState(() => {
-    if (typeof window !== "undefined")
-      return Number(localStorage.getItem("upload.sfxVolume") || "100");
-    return 100;
   });
 
   const [smartZoomEnabled, setSmartZoomEnabled] = useState(() => {
@@ -338,15 +324,8 @@ function UploadPage() {
     localStorage.setItem("upload.numClips", String(numClips));
   }, [numClips]);
   useEffect(() => {
-    localStorage.setItem("upload.sfxEnabled", String(sfxEnabled));
-  }, [sfxEnabled]);
-
-  useEffect(() => {
     localStorage.setItem("upload.fadeEnabled", String(fadeEnabled));
   }, [fadeEnabled]);
-  useEffect(() => {
-    localStorage.setItem("upload.sfxVolume", String(sfxVolume));
-  }, [sfxVolume]);
 
   useEffect(() => {
     localStorage.setItem("upload.smartZoomEnabled", String(smartZoomEnabled));
@@ -445,6 +424,8 @@ function UploadPage() {
   const [error, setError] = useState<string | null>(null);
   const [showInterruptDialog, setShowInterruptDialog] = useState(false);
   const pollRef = useRef<number | null>(null);
+  const startTimeRef = useRef<number | null>(null);
+  const [elapsedSec, setElapsedSec] = useState(0);
 
   const { shortcuts, matchesShortcut } = useShortcuts();
 
@@ -500,66 +481,32 @@ function UploadPage() {
   const estTotal = estClips * layouts.length * (captionsOn ? templates.length : 1);
   const current = stepIndexFor(status?.step, status?.progress);
 
-  const applyPreset = (presetId: string) => {
-    const p = presets[presetId];
-    if (!p) return;
-    setSelectedPreset(presetId);
-    if (p.layouts !== undefined) setLayouts(p.layouts);
-    if (p.templates !== undefined) setTemplates(p.templates);
-    if (p.captionsOn !== undefined) setCaptionsOn(p.captionsOn);
-    if (p.position !== undefined) setPosition(p.position);
-    if (p.hookStyle !== undefined) setHookStyle(p.hookStyle);
-    if (p.clipVibe !== undefined) setClipVibe(p.clipVibe);
-    if (p.hookVibe !== undefined) setHookVibe(p.hookVibe);
-    if (p.hookLang !== undefined) setHookLang(p.hookLang);
-    if (p.creatorNameEnabled !== undefined) setCreatorNameEnabled(p.creatorNameEnabled);
-    if (p.creatorName !== undefined) setCreatorName(p.creatorName);
-    if (p.maxWordsOn !== undefined) setMaxWordsOn(p.maxWordsOn);
-    if (p.maxWords !== undefined) setMaxWords(p.maxWords);
-    if (p.fontSizeOn !== undefined) setFontSizeOn(p.fontSizeOn);
-    if (p.fontSize !== undefined) setFontSize(p.fontSize);
-    if (p.numClips !== undefined) setNumClips(p.numClips);
-    if (p.sfxEnabled !== undefined) setSfxEnabled(p.sfxEnabled);
-    if (p.fadeEnabled !== undefined) setFadeEnabled(p.fadeEnabled);
-    if (p.sfxVolume !== undefined) setSfxVolume(p.sfxVolume);
-    if (p.smartZoomEnabled !== undefined) setSmartZoomEnabled(p.smartZoomEnabled);
-    if (p.smartZoomStyle !== undefined) setSmartZoomStyle(p.smartZoomStyle);
-    if (p.smartZoomIntensity !== undefined) setSmartZoomIntensity(p.smartZoomIntensity);
-    if (p.speedRampEnabled !== undefined) setSpeedRampEnabled(p.speedRampEnabled);
-    if (p.speedRampMax !== undefined) setSpeedRampMax(p.speedRampMax);
-    if (p.watermarkEnabled !== undefined) setWatermarkEnabled(p.watermarkEnabled);
-    if (p.watermarkType !== undefined) setWatermarkType(p.watermarkType);
-    if (p.watermarkText !== undefined) setWatermarkText(p.watermarkText);
-    if (p.watermarkPosition !== undefined) setWatermarkPosition(p.watermarkPosition);
-    if (p.watermarkOpacity !== undefined) setWatermarkOpacity(p.watermarkOpacity);
-    if (p.watermarkScale !== undefined) setWatermarkScale(p.watermarkScale);
-    if (p.watermarkMargin !== undefined) setWatermarkMargin(p.watermarkMargin);
-    if (p.watermarkAnimation !== undefined) setWatermarkAnimation(p.watermarkAnimation);
+  // ETA estimation (seconds) based on clip count and settings
+  const getEstimateSecs = () => {
+    const downloadSec = inputMode === "url" ? 60 : 10;
+    const transcriptSec = 30; // Gemini full-video transcript
+    const whisperPerClip = 60; // Faster-Whisper large-v3-turbo @ int8 CPU
+    const renderPerVariant = 30; // FFmpeg render per layout×template combo
+    const variants = layouts.length * (captionsOn ? templates.length : 1);
+    return downloadSec + transcriptSec + (whisperPerClip * numClips) + (renderPerVariant * numClips * variants);
   };
 
-  const handleSavePreset = async () => {
-    const name = window.prompt("Enter a name for this preset:");
-    if (!name || !name.trim()) return;
-    const presetId = name.trim();
-    const data = {
-      layouts, templates, captionsOn, position, hookStyle, clipVibe, hookVibe, hookLang, creatorNameEnabled, creatorName,
-      maxWordsOn, maxWords, fontSizeOn, fontSize, numClips, sfxEnabled, fadeEnabled,
-      sfxVolume, smartZoomEnabled, smartZoomStyle, smartZoomIntensity, speedRampEnabled,
-      speedRampMax, watermarkEnabled, watermarkType, watermarkText, watermarkPosition,
-      watermarkOpacity, watermarkScale, watermarkMargin, watermarkAnimation
-    };
-    try {
-      await api.savePreset(presetId, data);
-      setPresets(prev => ({ ...prev, [presetId]: data }));
-      setSelectedPreset(presetId);
-    } catch (e) {
-      alert("Failed to save preset: " + (e as Error).message);
-    }
+  const totalEstSec = getEstimateSecs();
+  const remainingSec = Math.max(0, totalEstSec - elapsedSec);
+
+  const fmtTime = (s: number) => {
+    if (s < 60) return `${s}s`;
+    const m = Math.floor(s / 60);
+    const rem = s % 60;
+    return rem > 0 ? `${m}m ${rem}s` : `${m}m`;
   };
+
 
   const submit = async () => {
     setError(null);
     setSubmitting(true);
+    startTimeRef.current = Date.now();
+    setElapsedSec(0);
     try {
       const opts = {
         layouts,
@@ -573,9 +520,6 @@ function UploadPage() {
         max_words: maxWordsOn ? maxWords : undefined,
         generate_captions: captionsOn,
         num_clips: numClips,
-        sfx_enabled: sfxEnabled,
-        sfx_volume: sfxVolume,
-        sfx_pack: "default",
         fade_enabled: fadeEnabled,
         ...(maxWordsOn ? { max_words: maxWords } : {}),
         ...(fontSizeOn ? { font_size: fontSize } : {}),
@@ -636,6 +580,16 @@ function UploadPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [jobId, submitting, matchesShortcut, canSubmit]);
+
+  // Elapsed timer — ticks every second while job is running
+  useEffect(() => {
+    if (!jobId || status?.step === "Completed" || status?.step === "Done" || status?.step === "Failed") return;
+    if (!startTimeRef.current) startTimeRef.current = Date.now();
+    const id = window.setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - startTimeRef.current!) / 1000));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [jobId, status?.step]);
 
   const reset = () => {
     if (pollRef.current) window.clearTimeout(pollRef.current);
@@ -710,6 +664,54 @@ function UploadPage() {
               <div className="absolute top-0 right-0 bottom-0 left-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:20px_20px] animate-shimmer" />
             </div>
           </div>
+
+          {/* ── ETA Widget ── */}
+          {status?.step !== "Completed" && status?.step !== "Done" && status?.step !== "Failed" && (
+            <div
+              className="w-full max-w-md mb-6 rounded-2xl overflow-hidden"
+              style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.07)" }}
+            >
+              {/* header */}
+              <div
+                className="flex items-center gap-2 px-4 py-2.5"
+                style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", background: "rgba(0,0,0,0.2)" }}
+              >
+                <Timer className="w-3.5 h-3.5" style={{ color: "#00F0FF" }} />
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", color: "rgba(255,255,255,0.5)" }}>
+                  TIME ESTIMATE
+                </span>
+              </div>
+              {/* stats row */}
+              <div className="grid grid-cols-3 divide-x" style={{ divideColor: "rgba(255,255,255,0.05)" }}>
+                {[
+                  { label: "Elapsed", value: fmtTime(elapsedSec), color: "#E4E4E7" },
+                  { label: "Estimated", value: fmtTime(totalEstSec), color: "#00F0FF" },
+                  { label: "Remaining", value: remainingSec <= 5 ? "Almost done" : fmtTime(remainingSec), color: elapsedSec > totalEstSec ? "#FFA500" : "#8A2BE2" },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="flex flex-col items-center py-3 px-2">
+                    <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>{label}</span>
+                    <span style={{ fontSize: 16, fontWeight: 700, color, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>{value}</span>
+                  </div>
+                ))}
+              </div>
+              {/* breakdown */}
+              <div
+                className="px-4 py-2 flex flex-wrap gap-x-4 gap-y-1"
+                style={{ borderTop: "1px solid rgba(255,255,255,0.05)", background: "rgba(0,0,0,0.15)" }}
+              >
+                {[
+                  { label: inputMode === "url" ? "Download" : "Load", sec: inputMode === "url" ? 60 : 10 },
+                  { label: "AI Transcript", sec: 30 },
+                  { label: `Whisper ×${numClips}`, sec: 60 * numClips },
+                  { label: `Render ×${numClips * layouts.length * (captionsOn ? templates.length : 1)}`, sec: 30 * numClips * layouts.length * (captionsOn ? templates.length : 1) },
+                ].map(({ label, sec }) => (
+                  <span key={label} style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>
+                    {label} <span style={{ color: "rgba(255,255,255,0.6)" }}>~{fmtTime(sec)}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-col gap-4 w-full max-w-md">
             {STEPS.map((s, i) => {
@@ -834,32 +836,8 @@ function UploadPage() {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-8 max-w-6xl mx-auto w-full px-4">
         <div className="space-y-8">
           
-          {/* ── Presets Section ── */}
-          <section className="glass-panel p-4 flex items-center justify-between">
-            <div className="flex items-center gap-4 flex-1">
-              <div className="flex items-center gap-2 text-white font-medium">
-                <Bookmark className="w-5 h-5 text-[#00F0FF]" />
-                Presets
-              </div>
-              <select
-                value={selectedPreset}
-                onChange={(e) => applyPreset(e.target.value)}
-                className="flex-1 max-w-xs px-3 py-2 bg-black/40 border border-[rgba(255,255,255,0.1)] rounded-lg text-white text-sm focus:ring-[#00F0FF] focus:border-[#00F0FF] outline-none"
-              >
-                <option value="">-- Choose a Preset --</option>
-                {Object.keys(presets).map((pId) => (
-                  <option key={pId} value={pId}>{pId}</option>
-                ))}
-              </select>
-            </div>
-            <button
-              onClick={handleSavePreset}
-              className="flex items-center gap-2 px-4 py-2 bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)] border border-[rgba(255,255,255,0.1)] rounded-lg text-sm font-medium text-white transition-colors"
-            >
-              <Save className="w-4 h-4 text-[#8A2BE2]" />
-              Save Settings as Preset
-            </button>
-          </section>
+
+
 
           {/* ── Input section ── */}
           <section>
@@ -1210,34 +1188,7 @@ function UploadPage() {
                   )}
                 </div>
 
-                <div>
-                  <div className="flex justify-between items-center mb-3">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <Switch
-                        checked={sfxEnabled}
-                        onCheckedChange={setSfxEnabled}
-                        className="data-[state=checked]:!bg-[#00F0FF]"
-                      />
-                      <span className="text-xs font-semibold text-gray-300 uppercase tracking-widest font-display">
-                        Sound Effects
-                      </span>
-                    </label>
-                    {sfxEnabled && (
-                      <span className="text-[#00F0FF] font-bold font-mono text-sm">
-                        {sfxVolume}%
-                      </span>
-                    )}
-                  </div>
-                  {sfxEnabled && (
-                    <input
-                      type="range"
-                      min={0}
-                      max={200}
-                      value={sfxVolume}
-                      onChange={(e) => setSfxVolume(Number(e.target.value))}
-                    />
-                  )}
-                </div>
+
 
                 <div>
                   <div className="flex justify-between items-center mb-3">

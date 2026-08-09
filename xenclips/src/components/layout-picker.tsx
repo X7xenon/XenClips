@@ -9,42 +9,7 @@ const OPTIONS: {
   aspect: "vertical" | "wide";
   thumb: React.ReactNode;
 }[] = [
-  {
-    key: "full_vertical",
-    label: "Vertical AI",
-    hint: "Smart YOLO + face crop",
-    aspect: "vertical",
-    thumb: (
-      <div
-        className="h-full w-full relative"
-        style={{
-          background: "linear-gradient(135deg, rgba(20,20,25,1) 0%, rgba(10,10,15,1) 100%)",
-        }}
-      >
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjIiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNSkiLz48L3N2Zz4=')] opacity-50" />
-        <div
-          style={{
-            position: "absolute",
-            inset: "25%",
-            border: "1px solid rgba(0,240,255,0.4)",
-            borderRadius: 6,
-            boxShadow: "0 0 10px rgba(0,240,255,0.2)",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            top: "45%",
-            left: "30%",
-            right: "30%",
-            height: 1,
-            background: "rgba(0,240,255,0.6)",
-            boxShadow: "0 0 5px rgba(0,240,255,1)",
-          }}
-        />
-      </div>
-    ),
-  },
+
   {
     key: "bw_letterbox",
     label: "Cinematic",

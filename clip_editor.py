@@ -6,8 +6,6 @@ import shutil
 import tempfile
 import uuid
 
-import autocrop
-import sfx_engine.mixer as sfx_mixer
 
 
 # ==========================
@@ -79,7 +77,7 @@ def probe_video(video_path):
 #   "full_vertical" — content-aware/center crop, fills the whole 1080x1920 frame
 #   "bw_letterbox"  — original aspect kept, centered, black bars top/bottom
 #   "blur_bg"       — original aspect kept, centered, blurred stretched copy fills bars
-LAYOUTS = ["full_vertical", "bw_letterbox", "blur_bg", "streamer", "original"]
+LAYOUTS = ["bw_letterbox", "blur_bg", "streamer", "original"]
 
 
 # ==========================
@@ -291,17 +289,6 @@ def _layout_filter(src_w, src_h, layout):
     """Returns a filtergraph fragment (string) implementing the chosen layout.
     Output is always 1080x1920."""
     out_w, out_h = 1080, 1920
-
-    if layout == "full_vertical":
-        crop_w = min(src_w, int(src_h * 9 / 16))
-        crop_h = min(src_h, int(src_w * 16 / 9))
-        cx = (src_w - crop_w) // 2
-        cy = (src_h - crop_h) // 2
-        return (
-            f"crop={crop_w}:{crop_h}:{cx}:{cy},"
-            f"scale={out_w}:{out_h}:force_original_aspect_ratio=decrease,"
-            f"pad={out_w}:{out_h}:(ow-iw)/2:(oh-ih)/2:black"
-        )
 
     if layout == "bw_letterbox":
         # keep original aspect ratio, scale to fit width, pad top/bottom black
@@ -590,68 +577,14 @@ def render_raw_clip(
     layout=None, aspect="original", ass_path=None,
     hook_text=None, hook_style="default", zoom_punch=False, fade_in=0.3, fade_out=0.3,
     normalize_audio=True, target_loudness=-14,
-    autocrop_quality="fast", autocrop_encoder="hw",
-    precropped_path=None,  # if set, skip raw-cut+YOLO entirely and burn captions onto this cached crop
     emotion_peaks=None,
-    sfx_cues=None,
-    sfx_volume=100,
 ):
     duration = _get_duration(raw_clip_path)
-
-    # Use a temporary output path for the video render, then SFX mix to the final path
-    needs_sfx = bool(sfx_cues)
     final_output_path = output_path
-    if needs_sfx:
-        output_path = os.path.join(tempfile.gettempdir(), f"render_{uuid.uuid4().hex[:8]}.mp4")
 
     if layout == "original":
         aspect = "original"
         layout = None
-
-    if precropped_path is not None:
-        # Fast path: crop was already done once (shared across templates) —
-        # just burn this template's captions onto it.
-        _burn_captions_only(
-            precropped_path, output_path,
-            ass_path=ass_path, hook_text=hook_text, hook_style=hook_style, zoom_punch=zoom_punch,
-            fade_in=fade_in, fade_out=fade_out, clip_duration=duration,
-            normalize_audio=normalize_audio, target_loudness=target_loudness,
-            emotion_peaks=emotion_peaks,
-        )
-        if needs_sfx:
-            sfx_mixer.mix_sfx(output_path, final_output_path, sfx_cues, sfx_volume=sfx_volume)
-            if os.path.exists(output_path):
-                os.remove(output_path)
-        return final_output_path
-
-    if layout == "full_vertical":
-        temp_dir = tempfile.gettempdir()
-        cropped_path = os.path.join(temp_dir, f"cropped_{uuid.uuid4().hex[:8]}.mp4")
-        try:
-            autocrop.process_video(
-                raw_clip_path, cropped_path,
-                ratio="9:16", quality=autocrop_quality, encoder=autocrop_encoder,
-                frame_skip=1, downscale=2,
-                force_fill=False,
-            )
-            _burn_captions_only(
-                cropped_path, output_path,
-                ass_path=ass_path, hook_text=hook_text, hook_style=hook_style, zoom_punch=zoom_punch,
-                fade_in=fade_in, fade_out=fade_out, clip_duration=duration,
-                normalize_audio=normalize_audio, target_loudness=target_loudness,
-                emotion_peaks=emotion_peaks,
-            )
-            if needs_sfx:
-                sfx_mixer.mix_sfx(output_path, final_output_path, sfx_cues, sfx_volume=sfx_volume)
-                if os.path.exists(output_path):
-                    os.remove(output_path)
-        finally:
-            if os.path.exists(cropped_path):
-                try:
-                    os.remove(cropped_path)
-                except OSError:
-                    pass
-        return final_output_path
 
     # bw_letterbox / blur_bg / original — single pass, no source trimming needed
     src_w, src_h, _ = probe_video(raw_clip_path)
@@ -679,56 +612,14 @@ def render_raw_clip(
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"FFmpeg failed:\n{result.stderr[-2000:]}")
-        
-    if needs_sfx:
-        sfx_mixer.mix_sfx(output_path, final_output_path, sfx_cues, sfx_volume=sfx_volume)
-        if os.path.exists(output_path):
-            os.remove(output_path)
             
     return final_output_path
-
-
-def precrop_raw_clips(raw_clip_records, layout, autocrop_quality="fast", autocrop_encoder="hw"):
-    """
-    YOLO-crops each already-cut raw clip ONCE (cached), for sharing across
-    multiple caption templates. raw_clip_records: list of dicts with at
-    least "clip_number" and "raw_path" (as returned by
-    clip_cutter.cut_all_raw_clips()).
-
-    Returns {clip_number: cropped_path_or_None}.
-    """
-    print(f"\n########## Pre-cropping {len(raw_clip_records)} clip(s) once ({layout}) ##########\n")
-    cache = {}
-    for rec in raw_clip_records:
-        clip_number = rec["clip_number"]
-        raw_path = rec.get("raw_path")
-        if not raw_path or not os.path.exists(raw_path):
-            print(f"   ❌ Clip {clip_number}: raw clip missing, skipping")
-            cache[clip_number] = None
-            continue
-
-        cropped_path = os.path.join(tempfile.gettempdir(), f"cropped_{clip_number}_{uuid.uuid4().hex[:6]}.mp4")
-        try:
-            autocrop.process_video(
-                raw_path, cropped_path,
-                ratio="9:16", quality=autocrop_quality, encoder=autocrop_encoder,
-                frame_skip=1, downscale=2,
-                force_fill=False,
-            )
-            cache[clip_number] = cropped_path
-            print(f"   ✅ Clip {clip_number} cropped → {cropped_path}")
-        except Exception as e:
-            print(f"   ❌ Pre-crop failed for clip {clip_number}: {e}")
-            cache[clip_number] = None
-
-    return cache
 
 
 def process_raw_clips_multi_template(
     raw_clip_records, output_dir, ass_path_map, templates,
     layout=None, position="bottom",
     zoom_punch=False, fade_in=0.3, fade_out=0.3, normalize_audio=True,
-    autocrop_quality="fast", autocrop_encoder="hw",
 ):
     """
     Renders already-cut raw clips (from clip_cutter.py) with MULTIPLE
@@ -745,10 +636,6 @@ def process_raw_clips_multi_template(
     Returns {template: {clip_number: output_path_or_None}}.
     """
     os.makedirs(output_dir, exist_ok=True)
-
-    precropped_map = None
-    if layout == "full_vertical":
-        precropped_map = precrop_raw_clips(raw_clip_records, layout, autocrop_quality, autocrop_encoder)
 
     results = {template: {} for template in templates}
 
@@ -769,31 +656,18 @@ def process_raw_clips_multi_template(
             output_path = os.path.join(output_dir, f"final_{clip_number}__{template}.mp4")
 
             try:
-                precropped_path = precropped_map.get(clip_number) if precropped_map else None
                 render_raw_clip(
                     raw_path, output_path,
                     layout=layout, ass_path=ass_path, hook_text=hook_text, hook_style=hook_style,
                     zoom_punch=zoom_punch, fade_in=fade_in, fade_out=fade_out,
                     normalize_audio=normalize_audio,
-                    autocrop_quality=autocrop_quality, autocrop_encoder=autocrop_encoder,
-                    precropped_path=precropped_path,
                     emotion_peaks=rec.get("emotion_peaks"),
-                    sfx_cues=rec.get("sfx_cues"),
-                    sfx_volume=100, # Not exposed in process_raw_clips_multi_template yet
                 )
                 print(f"   ✅ Clip {clip_number} ({template}) → {output_path}")
                 results[template][clip_number] = output_path
             except Exception as e:
                 print(f"   ❌ Clip {clip_number} ({template}) failed: {e}")
                 results[template][clip_number] = None
-
-    if precropped_map:
-        for p in precropped_map.values():
-            if p and os.path.exists(p):
-                try:
-                    os.remove(p)
-                except OSError:
-                    pass
 
     return results
 
@@ -802,7 +676,6 @@ def process_raw_clips_multi_layout_template(
     raw_clip_records, output_dir, ass_path_map, templates, layouts,
     position="bottom",
     zoom_punch=False, fade_in=0.3, fade_out=0.3, normalize_audio=True,
-    autocrop_quality="fast", autocrop_encoder="hw",
     sfx_volume=100,
 ):
     """
@@ -823,10 +696,6 @@ def process_raw_clips_multi_layout_template(
     results = {layout: {template: {} for template in templates} for layout in layouts}
 
     for layout in layouts:
-        precropped_map = None
-        if layout == "full_vertical":
-            precropped_map = precrop_raw_clips(raw_clip_records, layout, autocrop_quality, autocrop_encoder)
-
         for template in templates:
             print(f"\n########## Rendering layout={layout} template={template} ##########\n")
             for rec in raw_clip_records:
@@ -844,31 +713,18 @@ def process_raw_clips_multi_layout_template(
                 output_path = os.path.join(output_dir, f"final_{clip_number}__{layout}__{template}.mp4")
 
                 try:
-                    precropped_path = precropped_map.get(clip_number) if precropped_map else None
                     render_raw_clip(
                         raw_path, output_path,
                         layout=layout, ass_path=ass_path, hook_text=hook_text, hook_style=hook_style,
                         zoom_punch=zoom_punch, fade_in=fade_in, fade_out=fade_out,
                         normalize_audio=normalize_audio,
-                        autocrop_quality=autocrop_quality, autocrop_encoder=autocrop_encoder,
-                        precropped_path=precropped_path,
                         emotion_peaks=rec.get("emotion_peaks"),
-                        sfx_cues=rec.get("sfx_cues"),
-                        sfx_volume=sfx_volume,
                     )
                     print(f"   ✅ Clip {clip_number} ({layout}, {template}) → {output_path}")
                     results[layout][template][clip_number] = output_path
                 except Exception as e:
                     print(f"   ❌ Clip {clip_number} ({layout}, {template}) failed: {e}")
                     results[layout][template][clip_number] = None
-
-        if precropped_map:
-            for p in precropped_map.values():
-                if p and os.path.exists(p):
-                    try:
-                        os.remove(p)
-                    except OSError:
-                        pass
 
     return results
 
@@ -888,8 +744,6 @@ def cut_clip(
     fade_out=0.3,
     normalize_audio=True,
     target_loudness=-14,   # LUFS — Spotify/YouTube standard
-    autocrop_quality="fast",   # passed through to autocrop.process_video
-    autocrop_encoder="hw",    # "hw" tries Intel QSV first on this laptop
 ):
     duration = float(end) - float(start)
 
@@ -898,52 +752,6 @@ def cut_clip(
     if layout == "original":
         aspect = "original"
         layout = None
-
-    # ── full_vertical uses smart (YOLO+face) cropping via ──────
-    # autocrop.py. This needs 3 passes instead of 1: raw copy-cut (fast, no
-    # re-encode) → autocrop.py's frame-by-frame smart crop (the slow part —
-    # CPU YOLO) → a final lightweight pass that only burns captions (no crop
-    # needed, autocrop.py already produced a correct 1080x1920 frame).
-    #
-    # Difference between the two: "full_vertical" allows LETTERBOX (black
-    # bars) when no one's clearly framed or a group is too wide. "ishowspeed"
-    # (force_fill=True) NEVER letterboxes — always full-bleed 9:16, falling
-    # back to a plain center-crop if nothing is detected.
-    if layout == "full_vertical":
-        temp_dir = tempfile.gettempdir()
-        raw_path = os.path.join(temp_dir, f"raw_{uuid.uuid4().hex[:8]}.mp4")
-        cropped_path = os.path.join(temp_dir, f"cropped_{uuid.uuid4().hex[:8]}.mp4")
-
-        try:
-            # Step 1: fast raw cut, no re-encode
-            raw_cmd = ["ffmpeg", "-y", "-ss", str(start), "-i", video_path, "-t", str(duration), "-c", "copy", raw_path]
-            result = subprocess.run(raw_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            if result.returncode != 0:
-                raise RuntimeError(f"Raw copy-cut failed:\n{result.stderr[-2000:]}")
-
-            # Step 2: smart vertical crop (YOLOv8n + face detection)
-            autocrop.process_video(
-                raw_path, cropped_path,
-                ratio="9:16", quality=autocrop_quality, encoder=autocrop_encoder,
-                frame_skip=1, downscale=2,
-                force_fill=False,
-            )
-
-            # Step 3: burn captions/hook/fades onto the already-cropped frame
-            _burn_captions_only(
-                cropped_path, output_path,
-                ass_path=ass_path, hook_text=hook_text, hook_style=hook_style, zoom_punch=zoom_punch,
-                fade_in=fade_in, fade_out=fade_out, clip_duration=duration,
-                normalize_audio=normalize_audio, target_loudness=target_loudness,
-            )
-        finally:
-            for p in (raw_path, cropped_path):
-                if os.path.exists(p):
-                    try:
-                        os.remove(p)
-                    except OSError:
-                        pass
-        return
 
     # ── all other layouts (bw_letterbox, blur_bg, legacy aspect) — single pass ──
     src_w, src_h, _ = probe_video(video_path)
@@ -1028,7 +836,7 @@ def render_single_clip(
     video_path, start, end, output_path,
     layout=None, aspect="original", ass_path=None,
     hook_text=None, zoom_punch=False, fade_in=0.3, fade_out=0.3,
-    normalize_audio=True, autocrop_quality="fast", autocrop_encoder="hw",
+    normalize_audio=True,
 ):
     """Re-render exactly one clip — same underlying logic as process_clips'
     per-clip loop, but callable directly with a single start/end window.
@@ -1044,8 +852,6 @@ def render_single_clip(
         fade_in=fade_in,
         fade_out=fade_out,
         normalize_audio=normalize_audio,
-        autocrop_quality=autocrop_quality,
-        autocrop_encoder=autocrop_encoder,
     )
     return output_path
 
@@ -1067,9 +873,6 @@ def process_clips(
     template_label=None,  # NEW: tags output filenames, e.g. "final_1_title__alex_hormozi.mp4" —
                           # required when rendering the same clips with multiple caption templates
                           # in one run, so each template's output doesn't overwrite the last.
-    precropped_map=None,  # NEW: {clip_number: cropped_path} — when set (multi-template runs on
-                          # full_vertical, skips the expensive raw-cut+YOLO-crop step
-                          # and burns captions directly onto the already-cropped clip instead.
 ):
     data = load_clips(clips_json_path)
     clips = data.get("clips", [])
@@ -1112,31 +915,18 @@ def process_clips(
         print(f"✂  Clip {clip_number}: {start:.2f}s → {end:.2f}s  |  layout={clip_layout or clip_aspect}  |  ass={ass_path}")
 
         try:
-            if precropped_map is not None and clip_layout in ("full_vertical", "ishowspeed"):
-                # Fast path: crop was already done once by _precrop_clips_for_yolo_layout —
-                # just burn this template's captions onto the cached cropped clip.
-                cropped_path = precropped_map.get(clip_number)
-                if not cropped_path or not os.path.exists(cropped_path):
-                    raise RuntimeError("Pre-cropped clip missing (crop step failed earlier)")
-                _burn_captions_only(
-                    cropped_path, output_path,
-                    ass_path=ass_path, hook_text=clip_hook, hook_style=clip_hook_style, zoom_punch=clip_zoom,
-                    fade_in=fade_in, fade_out=fade_out, clip_duration=duration,
-                    normalize_audio=normalize_audio,
-                )
-            else:
-                cut_clip(
-                    video_path, start, end, output_path,
-                    aspect=clip_aspect,
-                    layout=clip_layout,
-                    ass_path=ass_path,
-                    hook_text=clip_hook,
-                    hook_style=clip_hook_style,
-                    zoom_punch=clip_zoom,
-                    fade_in=fade_in,
-                    fade_out=fade_out,
-                    normalize_audio=normalize_audio,
-                )
+            cut_clip(
+                video_path, start, end, output_path,
+                aspect=clip_aspect,
+                layout=clip_layout,
+                ass_path=ass_path,
+                hook_text=clip_hook,
+                hook_style=clip_hook_style,
+                zoom_punch=clip_zoom,
+                fade_in=fade_in,
+                fade_out=fade_out,
+                normalize_audio=normalize_audio,
+            )
             print(f"   ✅ Saved  → {output_path}")
             output_paths.append(output_path)
 
@@ -1151,62 +941,6 @@ def process_clips(
     print("==============================\n")
 
     return output_paths
-
-
-def _precrop_clips_for_yolo_layout(video_path, clips_json_path, workspace, layout, autocrop_quality="fast", autocrop_encoder="hw"):
-    """
-    Cuts + YOLO-crops each clip ONCE (regardless of how many caption templates
-    will be rendered afterward), caching results in workspace/temp/. This is
-    what makes multi-template rendering not redo the expensive smart-crop
-    step per template — only the cheap caption-burn pass repeats.
-
-    Returns {clip_number: cropped_path_or_None}.
-    """
-    data = load_clips(clips_json_path)
-    clips = data.get("clips", [])
-
-    temp_dir = os.path.join(workspace, "temp")
-    os.makedirs(temp_dir, exist_ok=True)
-
-    print(f"\n########## Pre-cropping {len(clips)} clip(s) once ({layout}) — shared across all templates ##########\n")
-
-    cache = {}
-    for i, clip in enumerate(clips):
-        clip_number = clip.get("clip", i + 1)
-        start = float(clip["start"])
-        end = float(clip["end"])
-        duration = end - start
-
-        raw_path = os.path.join(temp_dir, f"raw_{clip_number}.mp4")
-        cropped_path = os.path.join(temp_dir, f"cropped_{clip_number}.mp4")
-
-        try:
-            raw_cmd = ["ffmpeg", "-y", "-ss", str(start), "-i", video_path, "-t", str(duration), "-c", "copy", raw_path]
-            result = subprocess.run(raw_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            if result.returncode != 0:
-                raise RuntimeError(f"Raw copy-cut failed:\n{result.stderr[-1500:]}")
-
-            autocrop.process_video(
-                raw_path, cropped_path,
-                ratio="9:16", quality=autocrop_quality, encoder=autocrop_encoder,
-                frame_skip=1, downscale=2,
-                force_fill=False,
-            )
-            cache[clip_number] = cropped_path
-            print(f"   ✅ Clip {clip_number} cropped → {cropped_path}")
-
-        except Exception as e:
-            print(f"   ❌ Pre-crop failed for clip {clip_number}: {e}")
-            cache[clip_number] = None
-
-        finally:
-            if os.path.exists(raw_path):
-                try:
-                    os.remove(raw_path)
-                except OSError:
-                    pass
-
-    return cache
 
 
 def process_clips_multi_template(
@@ -1237,14 +971,6 @@ def process_clips_multi_template(
     if generate_ass_fn is None:
         raise ValueError("generate_ass_fn is required (pass generate_ass.generate_all_ass)")
 
-    precropped_map = None
-    if layout == "full_vertical":
-        precropped_map = _precrop_clips_for_yolo_layout(
-            video_path, clips_json_path, workspace, layout,
-            autocrop_quality=process_clips_kwargs.get("autocrop_quality", "fast"),
-            autocrop_encoder=process_clips_kwargs.get("autocrop_encoder", "hw"),
-        )
-
     results = {}
     for template in templates:
         print(f"\n########## Rendering template: {template} ##########\n")
@@ -1262,18 +988,9 @@ def process_clips_multi_template(
             ass_files=ass_files,
             layout=layout,
             template_label=template,
-            precropped_map=precropped_map,
             **process_clips_kwargs,
         )
         results[template] = {"output_paths": output_paths, "ass_files": ass_files}
-
-    if precropped_map:
-        for p in precropped_map.values():
-            if p and os.path.exists(p):
-                try:
-                    os.remove(p)
-                except OSError:
-                    pass
 
     return results
 
@@ -1290,7 +1007,6 @@ if __name__ == "__main__":
 
     print("\nLayout options:")
     labels = {
-        "full_vertical": "Full vertical crop (fills frame)",
         "bw_letterbox": "Original ratio + black letterbox",
         "blur_bg": "Original ratio + blurred background fill",
         "streamer": "9:16 padded with white canvas",

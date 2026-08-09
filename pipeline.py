@@ -31,9 +31,6 @@ from whisper_transcriber import transcribe_clips_batch
 from hinglish_corrector import correct_clips_batch
 from generate_ass import build_ass_from_whisper_words
 from clip_editor import process_raw_clips_multi_layout_template
-from sfx_engine.generator import generate_events
-from sfx_engine.mapper import map_events_to_audio
-from watermark import apply_watermark
 
 MIN_TEMPLATES = 1
 MIN_LAYOUTS = 1
@@ -50,15 +47,10 @@ def run_pipeline(
     num_clips: int = 6, # number of clips to generate
     generate_captions: bool = True,
     hook_style: str = "default",
-    sfx_enabled: bool = True,
-    sfx_volume: int = 100,
-    sfx_pack: str = "default",
     fade_enabled: bool = True,
     clip_vibe: str = "viral",
     hook_vibe: str = "clickbait",
     hook_lang: str = "auto",          # "auto" | "english" | "hinglish"
-    creator_name: str | None = None,   # include in hook text if set
-    watermark_options: dict | None = None,
     do_cleanup: bool = True,
     progress_cb=None,  # optional callable(step: str, progress: int) — for server.py status polling
 ) -> dict:
@@ -72,7 +64,7 @@ def run_pipeline(
             "ass_path_map": {template: {clip_number: ass_path}},
         }
     """
-    layouts = layouts or ["full_vertical"]
+    layouts = layouts or ["bw_letterbox"]
     templates = templates or ["alex_hormozi", "mrbeast", "podcast"]
     layouts = list(dict.fromkeys(layouts))     # de-dupe, preserve order
     templates = list(dict.fromkeys(templates)) if generate_captions else ["none"]
@@ -117,7 +109,7 @@ def run_pipeline(
             clips = json.load(f)["clips"]
     else:
         _status("Finding Viral Moments...", 15)
-        clips = generate_viral_clips(transcript_path, target_duration=target_duration, num_clips=num_clips, clip_vibe=clip_vibe, hook_vibe=hook_vibe, hook_lang=hook_lang, creator_name=creator_name)
+        clips = generate_viral_clips(transcript_path, target_duration=target_duration, num_clips=num_clips, clip_vibe=clip_vibe, hook_vibe=hook_vibe, hook_lang=hook_lang)
         clips_json_path = save_clips(clips, workspace)
 
     # --------------------------
@@ -210,22 +202,6 @@ def run_pipeline(
         words_by_clip_number = {r["clip_number"]: [] for r in valid_records}
 
     # --------------------------
-    # STEP 6.5: GENERATE SFX CUES (NEW)
-    # --------------------------
-    if sfx_enabled:
-        _status("Generating SFX Cues", 60)
-        # We use the first template as the base for animation hints
-        base_template = templates[0] if templates else "alex_hormozi"
-        for r in valid_records:
-            words = words_by_clip_number.get(r["clip_number"], [])
-            events = generate_events(words, template=base_template)
-            mapped_cues = map_events_to_audio(events, pack=sfx_pack)
-            r["sfx_cues"] = mapped_cues
-    else:
-        for r in valid_records:
-            r["sfx_cues"] = []
-
-    # --------------------------
     # STEP 7: GENERATE ASS PER CLIP PER TEMPLATE (layout-independent)
     # --------------------------
     clips_dir = os.path.join(workspace, "clips")
@@ -271,26 +247,9 @@ def run_pipeline(
         templates=templates,
         layouts=layouts,
         position=position,
-        sfx_volume=sfx_volume if sfx_enabled else 0,
         fade_in=0.3 if fade_enabled else 0,
         fade_out=0.3 if fade_enabled else 0,
     )
-
-    # --------------------------
-    # STEP 8.5: WATERMARK
-    # --------------------------
-    if watermark_options and watermark_options.get("enabled"):
-        _status("Applying Watermark", 90)
-        import tempfile
-        import shutil
-        for layout, layout_dict in outputs.items():
-            for template, template_dict in layout_dict.items():
-                for clip_id, clip_path in template_dict.items():
-                    if clip_path and os.path.exists(clip_path):
-                        temp_out = clip_path + ".wm.mp4"
-                        success = apply_watermark(clip_path, temp_out, watermark_options)
-                        if success and os.path.exists(temp_out):
-                            shutil.move(temp_out, clip_path)
 
     # --------------------------
     # STEP 9: CLEANUP (delete input/ and temp/ to save disk space)

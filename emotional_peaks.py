@@ -177,10 +177,9 @@ def detect_audio_peaks(
 def merge_peaks(
     audio_peaks: list[dict],
     gemini_emotion: float = 0.0,
-    sfx_cues: list[dict] | None = None,
     min_gap_sec: float = 2.0,
 ) -> list[dict]:
-    """Merge audio peaks, Gemini emotion score, and SFX cue markers.
+    """Merge audio peaks and Gemini emotion score.
 
     Parameters
     ----------
@@ -189,9 +188,6 @@ def merge_peaks(
     gemini_emotion : float
         Gemini's overall emotion_intensity for the clip (0-1).  Applied as
         a flat boost to every audio peak's intensity.
-    sfx_cues : list[dict] | None
-        ``[{"time": float, "intensity": float, ...}, ...]``
-        Timestamps where SFX were placed — treated as emotion markers.
     min_gap_sec : float
         Minimum seconds between retained peaks.  When two peaks are
         closer than this, the one with higher intensity wins.
@@ -212,19 +208,6 @@ def merge_peaks(
             "intensity": round(boosted, 4),
             "source": "audio",
         })
-
-    # SFX cues
-    if sfx_cues:
-        for cue in sfx_cues:
-            t = cue.get("time")
-            if t is None:
-                continue
-            intensity = cue.get("intensity", 0.8)  # default high-ish
-            combined.append({
-                "time": float(t),
-                "intensity": round(min(1.0, float(intensity)), 4),
-                "source": "sfx",
-            })
 
     if not combined:
         return []

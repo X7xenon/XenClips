@@ -308,6 +308,7 @@ function ClipCard({ clip }: { clip: Clip }) {
     <Link
       to="/clips/$clipId"
       params={{ clipId: clip.clip_id }}
+      data-testid={`clip-card-${clip.clip_id}`}
       className="block shrink-0 group/card"
     >
       <div className="relative w-[140px] rounded-xl overflow-hidden transition-all duration-300 transform group-hover/card:-translate-y-2 group-hover/card:shadow-[0_15px_30px_rgba(0,0,0,0.5)]">

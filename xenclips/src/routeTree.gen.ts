@@ -10,14 +10,11 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as RemoteRouteImport } from './routes/remote'
-import { Route as PublishRouteImport } from './routes/publish'
 import { Route as HistoryRouteImport } from './routes/history'
-import { Route as AccountsRouteImport } from './routes/accounts'
+import { Route as GuideRouteImport } from './routes/guide'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ClipsIndexRouteImport } from './routes/clips.index'
-import { Route as PublishQueueRouteImport } from './routes/publish.queue'
-import { Route as PublishHistoryRouteImport } from './routes/publish.history'
 import { Route as ClipsClipIdRouteImport } from './routes/clips.$clipId'
 
 const SettingsRoute = SettingsRouteImport.update({
@@ -25,24 +22,19 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RemoteRoute = RemoteRouteImport.update({
-  id: '/remote',
-  path: '/remote',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PublishRoute = PublishRouteImport.update({
-  id: '/publish',
-  path: '/publish',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const HistoryRoute = HistoryRouteImport.update({
   id: '/history',
   path: '/history',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AccountsRoute = AccountsRouteImport.update({
-  id: '/accounts',
-  path: '/accounts',
+const GuideRoute = GuideRouteImport.update({
+  id: '/guide',
+  path: '/guide',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -55,16 +47,6 @@ const ClipsIndexRoute = ClipsIndexRouteImport.update({
   path: '/clips/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PublishQueueRoute = PublishQueueRouteImport.update({
-  id: '/queue',
-  path: '/queue',
-  getParentRoute: () => PublishRoute,
-} as any)
-const PublishHistoryRoute = PublishHistoryRouteImport.update({
-  id: '/history',
-  path: '/history',
-  getParentRoute: () => PublishRoute,
-} as any)
 const ClipsClipIdRoute = ClipsClipIdRouteImport.update({
   id: '/clips/$clipId',
   path: '/clips/$clipId',
@@ -73,86 +55,67 @@ const ClipsClipIdRoute = ClipsClipIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/accounts': typeof AccountsRoute
+  '/about': typeof AboutRoute
+  '/guide': typeof GuideRoute
   '/history': typeof HistoryRoute
-  '/publish': typeof PublishRouteWithChildren
-  '/remote': typeof RemoteRoute
   '/settings': typeof SettingsRoute
   '/clips/$clipId': typeof ClipsClipIdRoute
-  '/publish/history': typeof PublishHistoryRoute
-  '/publish/queue': typeof PublishQueueRoute
   '/clips/': typeof ClipsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/accounts': typeof AccountsRoute
+  '/about': typeof AboutRoute
+  '/guide': typeof GuideRoute
   '/history': typeof HistoryRoute
-  '/publish': typeof PublishRouteWithChildren
-  '/remote': typeof RemoteRoute
   '/settings': typeof SettingsRoute
   '/clips/$clipId': typeof ClipsClipIdRoute
-  '/publish/history': typeof PublishHistoryRoute
-  '/publish/queue': typeof PublishQueueRoute
   '/clips': typeof ClipsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/accounts': typeof AccountsRoute
+  '/about': typeof AboutRoute
+  '/guide': typeof GuideRoute
   '/history': typeof HistoryRoute
-  '/publish': typeof PublishRouteWithChildren
-  '/remote': typeof RemoteRoute
   '/settings': typeof SettingsRoute
   '/clips/$clipId': typeof ClipsClipIdRoute
-  '/publish/history': typeof PublishHistoryRoute
-  '/publish/queue': typeof PublishQueueRoute
   '/clips/': typeof ClipsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/accounts'
+    | '/about'
+    | '/guide'
     | '/history'
-    | '/publish'
-    | '/remote'
     | '/settings'
     | '/clips/$clipId'
-    | '/publish/history'
-    | '/publish/queue'
     | '/clips/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/accounts'
+    | '/about'
+    | '/guide'
     | '/history'
-    | '/publish'
-    | '/remote'
     | '/settings'
     | '/clips/$clipId'
-    | '/publish/history'
-    | '/publish/queue'
     | '/clips'
   id:
     | '__root__'
     | '/'
-    | '/accounts'
+    | '/about'
+    | '/guide'
     | '/history'
-    | '/publish'
-    | '/remote'
     | '/settings'
     | '/clips/$clipId'
-    | '/publish/history'
-    | '/publish/queue'
     | '/clips/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AccountsRoute: typeof AccountsRoute
+  AboutRoute: typeof AboutRoute
+  GuideRoute: typeof GuideRoute
   HistoryRoute: typeof HistoryRoute
-  PublishRoute: typeof PublishRouteWithChildren
-  RemoteRoute: typeof RemoteRoute
   SettingsRoute: typeof SettingsRoute
   ClipsClipIdRoute: typeof ClipsClipIdRoute
   ClipsIndexRoute: typeof ClipsIndexRoute
@@ -167,20 +130,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/remote': {
-      id: '/remote'
-      path: '/remote'
-      fullPath: '/remote'
-      preLoaderRoute: typeof RemoteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/publish': {
-      id: '/publish'
-      path: '/publish'
-      fullPath: '/publish'
-      preLoaderRoute: typeof PublishRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/history': {
       id: '/history'
       path: '/history'
@@ -188,11 +137,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/accounts': {
-      id: '/accounts'
-      path: '/accounts'
-      fullPath: '/accounts'
-      preLoaderRoute: typeof AccountsRouteImport
+    '/guide': {
+      id: '/guide'
+      path: '/guide'
+      fullPath: '/guide'
+      preLoaderRoute: typeof GuideRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -209,20 +165,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClipsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/publish/queue': {
-      id: '/publish/queue'
-      path: '/queue'
-      fullPath: '/publish/queue'
-      preLoaderRoute: typeof PublishQueueRouteImport
-      parentRoute: typeof PublishRoute
-    }
-    '/publish/history': {
-      id: '/publish/history'
-      path: '/history'
-      fullPath: '/publish/history'
-      preLoaderRoute: typeof PublishHistoryRouteImport
-      parentRoute: typeof PublishRoute
-    }
     '/clips/$clipId': {
       id: '/clips/$clipId'
       path: '/clips/$clipId'
@@ -233,25 +175,11 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface PublishRouteChildren {
-  PublishHistoryRoute: typeof PublishHistoryRoute
-  PublishQueueRoute: typeof PublishQueueRoute
-}
-
-const PublishRouteChildren: PublishRouteChildren = {
-  PublishHistoryRoute: PublishHistoryRoute,
-  PublishQueueRoute: PublishQueueRoute,
-}
-
-const PublishRouteWithChildren =
-  PublishRoute._addFileChildren(PublishRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AccountsRoute: AccountsRoute,
+  AboutRoute: AboutRoute,
+  GuideRoute: GuideRoute,
   HistoryRoute: HistoryRoute,
-  PublishRoute: PublishRouteWithChildren,
-  RemoteRoute: RemoteRoute,
   SettingsRoute: SettingsRoute,
   ClipsClipIdRoute: ClipsClipIdRoute,
   ClipsIndexRoute: ClipsIndexRoute,

@@ -42,10 +42,6 @@ class GeminiSettingsUpdate(BaseModel):
     limit_per_key: int = 50
     model: str = "gemini-2.5-flash-lite"
 
-class AppSettingsUpdate(BaseModel):
-    whatsapp_enabled: bool
-    whatsapp_number: str
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("server")
 
@@ -72,8 +68,9 @@ class WSLogHandler:
         self.original_stream.flush()
 
 # Replace stdout and stderr early to capture all prints
-sys.stdout = WSLogHandler(sys.stdout)
-sys.stderr = WSLogHandler(sys.stderr)
+if "pytest" not in sys.modules:
+    sys.stdout = WSLogHandler(sys.stdout)
+    sys.stderr = WSLogHandler(sys.stderr)
 # -------------------------------------------------------
 
 app = FastAPI(title="Shorts Clipper API")
@@ -83,6 +80,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/ping")
+def ping():
+    return {"status": "ok"}
 
 async def log_broadcaster():
     while True:
@@ -105,12 +106,6 @@ async def startup_event():
     global log_queue
     log_queue = asyncio.Queue()
     asyncio.create_task(log_broadcaster())
-    
-    from backend.remote.tailscale import start_tailscale_poller
-    start_tailscale_poller()
-    import whatsapp_notifier
-    if whatsapp_notifier.get_settings().get("whatsapp_enabled"):
-        whatsapp_notifier.start_bridge()
 
 @app.websocket("/ws/logs")
 async def websocket_logs(websocket: WebSocket):
@@ -186,9 +181,6 @@ class ProcessRequest(BaseModel):
     hook_vibe: str = Field(default="clickbait", description="AI hook text vibe")
     hook_lang: str = Field(default="auto", description="Hook text language: auto, english, or hinglish")
     creator_name: str | None = Field(default=None, description="Optional creator name to include in hook text")
-    sfx_enabled: bool = Field(default=True, description="Whether to add sound effects")
-    sfx_volume: int = Field(default=100, ge=0, le=100, description="Master volume for SFX")
-    sfx_pack: str = Field(default="default", description="Sound pack to use for SFX")
     fade_enabled: bool = Field(default=True, description="Whether to add video fade in/out")
 
     @field_validator("layouts")
@@ -230,7 +222,7 @@ def _run(
     job_id: str, url: str, layouts: list[str], templates: list[str], position: str,
     max_words: int | None, font_size: int | None, target_duration: int | None, num_clips: int, generate_captions: bool,
     hook_style: str, clip_vibe: str, hook_vibe: str, hook_lang: str, creator_name: str | None,
-    sfx_enabled: bool, sfx_volume: int, sfx_pack: str, fade_enabled: bool,
+    fade_enabled: bool,
     watermark_options: dict | None = None,
 ) -> None:
     try:
@@ -247,9 +239,6 @@ def _run(
             hook_vibe=hook_vibe,
             hook_lang=hook_lang,
             creator_name=creator_name,
-            sfx_enabled=sfx_enabled,
-            sfx_volume=sfx_volume,
-            sfx_pack=sfx_pack,
             fade_enabled=fade_enabled,
             watermark_options=watermark_options,
             progress_cb=progress_cb, do_cleanup=False,  # GUI needs raw clips preserved for re-render
@@ -288,7 +277,6 @@ def _run(
                         "segment_type": rec.get("segment_type", "viral"),
                         "emotional_intensity": rec.get("emotional_intensity", 0.0),
                         "emotion_peaks": rec.get("emotion_peaks", []),
-                        "sfx_cues": rec.get("sfx_cues", []),
                         "thumbnail_path": rec.get("thumbnail_path"),
                     }
                     clip_ids.append(clip_id)
@@ -298,13 +286,6 @@ def _run(
         JOBS[job_id]["templates"] = templates
         JOBS[job_id]["workspace"] = result["workspace"]
         _set_status(job_id, "Done", 100)
-
-        # Trigger WhatsApp notification if enabled
-        try:
-            import whatsapp_notifier
-            whatsapp_notifier.send_whatsapp_notification(f"✅ *XenClips Job Complete!*\n\nYour video '{JOBS[job_id].get('source_video', 'Unknown')}' has finished processing.\n{len(clip_ids)} clip variants are ready for review!")
-        except Exception as e:
-            logger.warning(f"Failed to send WhatsApp notification: {e}")
 
     except Exception as exc:  # noqa: BLE001
         logger.exception("Pipeline failed for job=%s", job_id)
@@ -329,9 +310,6 @@ async def process(request: Request, background_tasks: BackgroundTasks):
     hook_vibe = "clickbait"
     hook_lang = "auto"
     creator_name = None
-    sfx_enabled = True
-    sfx_volume = 100
-    sfx_pack = "default"
     fade_enabled = True
     
     body = None
@@ -355,9 +333,6 @@ async def process(request: Request, background_tasks: BackgroundTasks):
             hook_vibe = req.hook_vibe
             hook_lang = req.hook_lang
             creator_name = req.creator_name
-            sfx_enabled = req.sfx_enabled
-            sfx_volume = req.sfx_volume
-            sfx_pack = req.sfx_pack
             fade_enabled = req.fade_enabled
         except Exception as e:
             logger.exception("Invalid JSON request to /process")
@@ -394,18 +369,6 @@ async def process(request: Request, background_tasks: BackgroundTasks):
             num_clips_val = form.get("num_clips")
             if num_clips_val is not None:
                 num_clips = int(num_clips_val)
-            
-            sfx_enabled_val = form.get("sfx_enabled")
-            if sfx_enabled_val is not None:
-                sfx_enabled = sfx_enabled_val.lower() == "true"
-                
-            sfx_volume_val = form.get("sfx_volume")
-            if sfx_volume_val is not None:
-                sfx_volume = int(sfx_volume_val)
-                
-            sfx_pack_val = form.get("sfx_pack")
-            if sfx_pack_val is not None:
-                sfx_pack = sfx_pack_val
 
             generate_captions_val = form.get("generate_captions")
             if generate_captions_val is not None:
@@ -557,7 +520,6 @@ async def process(request: Request, background_tasks: BackgroundTasks):
         "smart_zoom_enabled": sz_enabled,
         "speed_ramp_enabled": sr_enabled,
         "watermark_enabled": wm_enabled,
-        "sfx_enabled": sfx_enabled,
         "url": url,
     }
     
@@ -566,7 +528,7 @@ async def process(request: Request, background_tasks: BackgroundTasks):
     background_tasks.add_task(
         _run,
         job_id, url, layouts, templates, position, max_words, font_size,
-        target_duration, num_clips, generate_captions, hook_style, clip_vibe, hook_vibe, hook_lang, creator_name, sfx_enabled, sfx_volume, sfx_pack, fade_enabled,
+        target_duration, num_clips, generate_captions, hook_style, clip_vibe, hook_vibe, hook_lang, creator_name, fade_enabled,
         watermark_options
     )
         
@@ -907,54 +869,7 @@ def update_gemini_settings(update: GeminiSettingsUpdate):
     gemini_usage.set_keys_settings(update.keys, update.limit_per_key, update.model)
     return {"status": "ok"}
 
-@app.get("/app-settings")
-def get_app_settings():
-    import whatsapp_notifier
-    return whatsapp_notifier.get_settings()
 
-@app.post("/app-settings")
-def update_app_settings(update: AppSettingsUpdate):
-    import whatsapp_notifier
-    whatsapp_notifier.save_settings({
-        "whatsapp_enabled": update.whatsapp_enabled,
-        "whatsapp_number": update.whatsapp_number
-    })
-    if update.whatsapp_enabled:
-        whatsapp_notifier.start_bridge()
-    else:
-        whatsapp_notifier.stop_bridge()
-    return {"status": "ok"}
-
-@app.get("/whatsapp/status")
-def get_whatsapp_status():
-    import requests
-    try:
-        res = requests.get("http://localhost:3001/status", timeout=5)
-        res.raise_for_status()
-        return res.json()
-    except Exception as e:
-        logger.error(f"WhatsApp status error: {e}")
-        return {"connected": False, "error": str(e)}
-
-@app.get("/whatsapp/qr")
-def get_whatsapp_qr():
-    import requests
-    try:
-        res = requests.get("http://localhost:3001/qr", timeout=15)
-        res.raise_for_status()
-        return res.json()
-    except Exception as e:
-        logger.error(f"WhatsApp QR error: {e}")
-        return {"connected": False, "qr": None, "error": str(e)}
-
-@app.post("/whatsapp/test")
-def test_whatsapp():
-    import whatsapp_notifier
-    success = whatsapp_notifier.send_whatsapp_notification("🤖 Hello! This is a test message from XenClips to verify your WhatsApp authentication.")
-    if success:
-        return {"status": "ok"}
-    else:
-        raise HTTPException(500, "Failed to send test message. Make sure the number is configured and the bridge is connected.")
 
 @app.get("/jobs")
 def get_jobs():
@@ -1007,12 +922,10 @@ def shutdown_app():
         time.sleep(1)
         # Kill the windows by their specific titles
         subprocess.run('taskkill /FI "WINDOWTITLE eq Xenclips Frontend*" /T /F', shell=True)
-        subprocess.run('taskkill /FI "WINDOWTITLE eq WhatsApp Bridge*" /T /F', shell=True)
         subprocess.run('taskkill /FI "WINDOWTITLE eq Xenclips Backend*" /T /F', shell=True)
     
     threading.Thread(target=_kill).start()
     return {"status": "Shutting down"}
 
-from backend.remote.service import router as remote_router
-app.include_router(remote_router, prefix="/api/remote", tags=["remote"])
+
 
