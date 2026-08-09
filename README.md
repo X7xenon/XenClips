@@ -98,5 +98,3 @@ Your web dashboard will now be running on `http://localhost:8080` (enforced by V
 ## 🤝 Contributing
 Contributions are highly welcome! Whether it's adding new caption templates, optimizing the face-tracking logic, or enhancing the frontend UI—feel free to fork this project and submit a Pull Request.
 
-## 📜 License
-MIT License. See `LICENSE` for details.
