@@ -47,12 +47,25 @@ def transcript_to_text(transcript):
 # PROMPT
 # ==========================
 
-def build_prompt(text, target_duration=None, num_clips=6, clip_vibe="viral", hook_vibe="clickbait"):
+def build_prompt(text, target_duration=None, num_clips=6, clip_vibe="viral", hook_vibe="clickbait", hook_lang="auto", creator_name=None):
     duration_rule = ""
     if target_duration:
         duration_rule = f"- Each clip should be close to {target_duration} seconds (±10s tolerance)\n"
     else:
         duration_rule = "- Each clip must be 50–80 seconds\n"
+
+    # Build language instruction
+    if hook_lang == "english":
+        lang_rule = "- STRICTLY write the \"hook_text\" in ENGLISH only, regardless of transcript language."
+    elif hook_lang == "hinglish":
+        lang_rule = "- STRICTLY write the \"hook_text\" in HINGLISH (Roman script Hindi/English mix) only, regardless of transcript language."
+    else:  # auto
+        lang_rule = "- If the transcript is in Hindi or Hinglish, write the \"hook_text\" in Hinglish (Roman script). Otherwise write it in English."
+
+    # Build creator name instruction
+    creator_rule = ""
+    if creator_name:
+        creator_rule = f'\n- IMPORTANT: You may naturally include the creator name \"{creator_name}\" in the hook_text where it makes it more viral or personal (e.g. "Yeh {creator_name} ne kya bola 🤯"). Do NOT force it in every hook — only use it when it genuinely improves virality.'
 
     return f"""
 You are an elite, world-class YouTube Shorts & TikTok editor and retention strategist.
@@ -71,7 +84,7 @@ Rules:
 - ONLY provide the absolute most viral parts, even if they are repeated or overlap heavily with each other. Quality is priority over avoiding overlaps.
 - Focus ONLY on elite, high-retention moments that will hook viewers in the first 3 seconds and keep them watching until the end.
 - Classify each clip's segment type: "viral" (default), "qa" (clear question+answer), "chapter_boundary" (topic shift), "product_mention" (brand/product named)
-- CRITICAL: If the transcript is in Hindi or Hinglish, you MUST write the "hook_text" in Hinglish (Roman script Hindi) instead of English.
+- {lang_rule}{creator_rule}
 
 Prioritize (in order of viral potential) based on the "{clip_vibe}" vibe:
 - If "funny": Look for jokes, humorous situations, hilarious reactions, and comedic timing.
@@ -225,11 +238,11 @@ def extract_json(text):
 # MAIN FUNCTION
 # ==========================
 
-def generate_viral_clips(transcript_path, target_duration=None, num_clips=6, clip_vibe="viral", hook_vibe="clickbait"):
+def generate_viral_clips(transcript_path, target_duration=None, num_clips=6, clip_vibe="viral", hook_vibe="clickbait", hook_lang="auto", creator_name=None):
     transcript = load_transcript(transcript_path)
     text = transcript_to_text(transcript)
 
-    prompt = build_prompt(text, target_duration=target_duration, num_clips=num_clips, clip_vibe=clip_vibe, hook_vibe=hook_vibe)
+    prompt = build_prompt(text, target_duration=target_duration, num_clips=num_clips, clip_vibe=clip_vibe, hook_vibe=hook_vibe, hook_lang=hook_lang, creator_name=creator_name)
 
     print("\nAnalyzing transcript for viral moments...\n")
 

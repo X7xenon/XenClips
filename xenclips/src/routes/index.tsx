@@ -207,6 +207,20 @@ function UploadPage() {
     }
     return "clickbait";
   });
+  const [hookLang, setHookLang] = useState<"auto" | "english" | "hinglish">(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("upload.hookLang") as any) || "auto";
+    }
+    return "auto";
+  });
+  const [creatorNameEnabled, setCreatorNameEnabled] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("upload.creatorNameEnabled") === "true";
+    return false;
+  });
+  const [creatorName, setCreatorName] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("upload.creatorName") || "";
+    return "";
+  });
   const [maxWordsOn, setMaxWordsOn] = useState(() => {
     if (typeof window !== "undefined") return localStorage.getItem("upload.maxWordsOn") === "true";
     return false;
@@ -299,6 +313,15 @@ function UploadPage() {
   useEffect(() => {
     localStorage.setItem("upload.hookVibe", hookVibe);
   }, [hookVibe]);
+  useEffect(() => {
+    localStorage.setItem("upload.hookLang", hookLang);
+  }, [hookLang]);
+  useEffect(() => {
+    localStorage.setItem("upload.creatorNameEnabled", String(creatorNameEnabled));
+  }, [creatorNameEnabled]);
+  useEffect(() => {
+    localStorage.setItem("upload.creatorName", creatorName);
+  }, [creatorName]);
   useEffect(() => {
     localStorage.setItem("upload.maxWordsOn", String(maxWordsOn));
   }, [maxWordsOn]);
@@ -488,6 +511,9 @@ function UploadPage() {
     if (p.hookStyle !== undefined) setHookStyle(p.hookStyle);
     if (p.clipVibe !== undefined) setClipVibe(p.clipVibe);
     if (p.hookVibe !== undefined) setHookVibe(p.hookVibe);
+    if (p.hookLang !== undefined) setHookLang(p.hookLang);
+    if (p.creatorNameEnabled !== undefined) setCreatorNameEnabled(p.creatorNameEnabled);
+    if (p.creatorName !== undefined) setCreatorName(p.creatorName);
     if (p.maxWordsOn !== undefined) setMaxWordsOn(p.maxWordsOn);
     if (p.maxWords !== undefined) setMaxWords(p.maxWords);
     if (p.fontSizeOn !== undefined) setFontSizeOn(p.fontSizeOn);
@@ -516,7 +542,7 @@ function UploadPage() {
     if (!name || !name.trim()) return;
     const presetId = name.trim();
     const data = {
-      layouts, templates, captionsOn, position, hookStyle, clipVibe, hookVibe,
+      layouts, templates, captionsOn, position, hookStyle, clipVibe, hookVibe, hookLang, creatorNameEnabled, creatorName,
       maxWordsOn, maxWords, fontSizeOn, fontSize, numClips, sfxEnabled, fadeEnabled,
       sfxVolume, smartZoomEnabled, smartZoomStyle, smartZoomIntensity, speedRampEnabled,
       speedRampMax, watermarkEnabled, watermarkType, watermarkText, watermarkPosition,
@@ -542,6 +568,8 @@ function UploadPage() {
         hook_style: hookStyle,
         clip_vibe: clipVibe,
         hook_vibe: hookVibe,
+        hook_lang: hookLang,
+        ...(creatorNameEnabled && creatorName.trim() ? { creator_name: creatorName.trim() } : {}),
         max_words: maxWordsOn ? maxWords : undefined,
         generate_captions: captionsOn,
         num_clips: numClips,
@@ -1027,6 +1055,49 @@ function UploadPage() {
                   <option value="mysterious">Curiosity & Mystery</option>
                   <option value="bold">Bold & Aggressive</option>
                 </select>
+              </div>
+
+              {/* Hook Text Language */}
+              <div>
+                <label className="text-xs font-semibold text-gray-300 uppercase tracking-widest font-display mb-2 block">
+                  Hook Text Language
+                </label>
+                <div className="flex gap-2">
+                  {(["auto", "english", "hinglish"] as const).map((lang) => (
+                    <button
+                      key={lang}
+                      type="button"
+                      onClick={() => setHookLang(lang)}
+                      className={`flex-1 py-2 rounded-lg font-display text-xs font-semibold tracking-wider uppercase transition-all duration-300 border ${hookLang === lang ? "bg-[rgba(0,240,255,0.1)] border-[#00F0FF] text-[#00F0FF] shadow-[inset_0_0_10px_rgba(0,240,255,0.08)]" : "bg-transparent border-[rgba(255,255,255,0.05)] text-gray-400 hover:border-[rgba(255,255,255,0.2)] hover:text-white"}`}
+                    >
+                      {lang === "auto" ? "🌐 Auto" : lang === "english" ? "🇬🇧 EN" : "🇮🇳 HI"}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1.5">Auto detects transcript language</p>
+              </div>
+
+              {/* Creator Name in Hook */}
+              <div>
+                <label className="flex items-center gap-3 cursor-pointer mb-2">
+                  <Switch
+                    checked={creatorNameEnabled}
+                    onCheckedChange={setCreatorNameEnabled}
+                    className="data-[state=checked]:!bg-[#00F0FF]"
+                  />
+                  <span className="text-xs font-semibold text-gray-300 uppercase tracking-widest font-display">
+                    Include Creator Name
+                  </span>
+                </label>
+                {creatorNameEnabled && (
+                  <input
+                    type="text"
+                    value={creatorName}
+                    onChange={(e) => setCreatorName(e.target.value)}
+                    placeholder="e.g. MrBeast, Ranveer Allahbadia..."
+                    className="w-full bg-[rgba(0,0,0,0.3)] border border-[rgba(255,255,255,0.1)] rounded px-3 py-2 text-sm text-white font-display placeholder-gray-600 focus:border-[#00F0FF] focus:outline-none focus:ring-1 focus:ring-[#00F0FF] transition-all"
+                  />
+                )}
               </div>
             </div>
           </section>

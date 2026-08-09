@@ -184,6 +184,8 @@ class ProcessRequest(BaseModel):
     hook_style: str = Field(default="default", description="Global hook text style to apply")
     clip_vibe: str = Field(default="viral", description="AI clip selection vibe")
     hook_vibe: str = Field(default="clickbait", description="AI hook text vibe")
+    hook_lang: str = Field(default="auto", description="Hook text language: auto, english, or hinglish")
+    creator_name: str | None = Field(default=None, description="Optional creator name to include in hook text")
     sfx_enabled: bool = Field(default=True, description="Whether to add sound effects")
     sfx_volume: int = Field(default=100, ge=0, le=100, description="Master volume for SFX")
     sfx_pack: str = Field(default="default", description="Sound pack to use for SFX")
@@ -227,7 +229,8 @@ def _set_status(job_id: str, step: str, progress: int, error: str | None = None)
 def _run(
     job_id: str, url: str, layouts: list[str], templates: list[str], position: str,
     max_words: int | None, font_size: int | None, target_duration: int | None, num_clips: int, generate_captions: bool,
-    hook_style: str, clip_vibe: str, hook_vibe: str, sfx_enabled: bool, sfx_volume: int, sfx_pack: str, fade_enabled: bool,
+    hook_style: str, clip_vibe: str, hook_vibe: str, hook_lang: str, creator_name: str | None,
+    sfx_enabled: bool, sfx_volume: int, sfx_pack: str, fade_enabled: bool,
     watermark_options: dict | None = None,
 ) -> None:
     try:
@@ -242,6 +245,8 @@ def _run(
             hook_style=hook_style,
             clip_vibe=clip_vibe,
             hook_vibe=hook_vibe,
+            hook_lang=hook_lang,
+            creator_name=creator_name,
             sfx_enabled=sfx_enabled,
             sfx_volume=sfx_volume,
             sfx_pack=sfx_pack,
@@ -322,6 +327,8 @@ async def process(request: Request, background_tasks: BackgroundTasks):
     hook_style = "default"
     clip_vibe = "viral"
     hook_vibe = "clickbait"
+    hook_lang = "auto"
+    creator_name = None
     sfx_enabled = True
     sfx_volume = 100
     sfx_pack = "default"
@@ -346,6 +353,8 @@ async def process(request: Request, background_tasks: BackgroundTasks):
             hook_style = req.hook_style
             clip_vibe = req.clip_vibe
             hook_vibe = req.hook_vibe
+            hook_lang = req.hook_lang
+            creator_name = req.creator_name
             sfx_enabled = req.sfx_enabled
             sfx_volume = req.sfx_volume
             sfx_pack = req.sfx_pack
@@ -417,6 +426,14 @@ async def process(request: Request, background_tasks: BackgroundTasks):
             hook_vibe_val = form.get("hook_vibe")
             if hook_vibe_val is not None:
                 hook_vibe = hook_vibe_val
+            
+            hook_lang_val = form.get("hook_lang")
+            if hook_lang_val is not None:
+                hook_lang = hook_lang_val
+
+            creator_name_val = form.get("creator_name")
+            if creator_name_val is not None:
+                creator_name = creator_name_val or None
             
             # The uploaded file
             upload_file = form.get("file")
@@ -549,7 +566,7 @@ async def process(request: Request, background_tasks: BackgroundTasks):
     background_tasks.add_task(
         _run,
         job_id, url, layouts, templates, position, max_words, font_size,
-        target_duration, num_clips, generate_captions, hook_style, clip_vibe, hook_vibe, sfx_enabled, sfx_volume, sfx_pack, fade_enabled,
+        target_duration, num_clips, generate_captions, hook_style, clip_vibe, hook_vibe, hook_lang, creator_name, sfx_enabled, sfx_volume, sfx_pack, fade_enabled,
         watermark_options
     )
         

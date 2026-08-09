@@ -56,6 +56,8 @@ def run_pipeline(
     fade_enabled: bool = True,
     clip_vibe: str = "viral",
     hook_vibe: str = "clickbait",
+    hook_lang: str = "auto",          # "auto" | "english" | "hinglish"
+    creator_name: str | None = None,   # include in hook text if set
     watermark_options: dict | None = None,
     do_cleanup: bool = True,
     progress_cb=None,  # optional callable(step: str, progress: int) — for server.py status polling
@@ -115,7 +117,7 @@ def run_pipeline(
             clips = json.load(f)["clips"]
     else:
         _status("Finding Viral Moments...", 15)
-        clips = generate_viral_clips(transcript_path, target_duration=target_duration, num_clips=num_clips, clip_vibe=clip_vibe, hook_vibe=hook_vibe)
+        clips = generate_viral_clips(transcript_path, target_duration=target_duration, num_clips=num_clips, clip_vibe=clip_vibe, hook_vibe=hook_vibe, hook_lang=hook_lang, creator_name=creator_name)
         clips_json_path = save_clips(clips, workspace)
 
     # --------------------------
