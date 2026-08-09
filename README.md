@@ -22,7 +22,7 @@ Featuring an incredibly sleek, real-time local web dashboard, XenClips orchestra
 - **🌐 Sleek Web Dashboard**: A modern, dark-mode glassmorphic interface built with React, Vite, and TanStack Router to manage jobs, preview templates, and configure processing visually.
 - **🧠 Intelligent Viral Detection**: Uses **Google Gemini 2.5 Flash** (with **NVIDIA Nemotron 3 Ultra / 4** fallback) to deeply analyze transcripts and find high-retention, high-emotion moments.
 - **🎙️ State-of-the-art Transcription**: Employs **Faster-Whisper large-v3-turbo** for rapid, accurate audio transcription and precise word-level timestamps.
-- **✍️ Hinglish Smart Correction**: A local **Qwen** model (via Ollama) intelligently corrects Hinglish, slang, and code-switched phrases instantly while preserving timestamps.
+- **✍️ Hinglish Smart Correction**: A rapid local dictionary-based corrector that fixes Hinglish, slang, and code-switched phrases instantly while preserving timestamps without requiring external LLMs.
 - **🎯 Dynamic Cropping**: Automatically handles smart center-cropping to perfectly fit horizontal videos into vertical 9:16 aspect ratios.
 - **🎬 Professional Subtitles**: Generates complex `.ass` and `.srt` caption templates with word-by-word highlights, animations, and emojis—just like top-tier editors.
 - **⏱️ Real-time Processing Estimates**: Advanced ETA widget that tracks processing times for downloading, transcription, clip selection, and rendering steps.
@@ -42,7 +42,6 @@ XenClips is split into two main components:
 - **Python 3.10+**
 - **Node.js 18+** & npm (or Bun)
 - **FFmpeg** (Must be installed and in your system PATH)
-- **Ollama** (Optional but recommended for local Hinglish spelling correction. Requires `qwen2.5` model pulled).
 - API Keys: 
   - **Gemini API Key** (Configured via the web interface Settings tab)
   - **NVIDIA API Key** (For Nemotron fallback)
