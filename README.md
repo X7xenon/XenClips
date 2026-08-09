@@ -60,8 +60,10 @@ pip install -r requirements.txt
 ### 📥 2. Download AI Models (Important!)
 Because AI models are too large for GitHub, you must download them manually into your project directory before running the app.
 
-1. **Whisper / Alignment Model (`model/model.bin`)**:
-   - If using local Whisper, ensure your `.bin` files and configuration (`config.json`, `tokenizer.json`, etc.) are placed inside the `model/` folder.
+1. **Whisper / Alignment Model (`model/`)**:
+   - We use the `large-v3-turbo` model for insanely fast and accurate transcription. 
+   - Download the model files directly from HuggingFace: [openai/whisper-large-v3-turbo](https://huggingface.co/openai/whisper-large-v3-turbo)
+   - Ensure the downloaded `.bin` files and configuration (`config.json`, `tokenizer.json`, etc.) are placed inside the `model/` folder in the root directory.
 
 ### 3. Start Backend Server
 
