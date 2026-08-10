@@ -51,6 +51,8 @@ def run_pipeline(
     clip_vibe: str = "viral",
     hook_vibe: str = "clickbait",
     hook_lang: str = "auto",          # "auto" | "english" | "hinglish"
+    creator_name: str | None = None,
+    watermark_options: dict | None = None,
     do_cleanup: bool = True,
     progress_cb=None,  # optional callable(step: str, progress: int) — for server.py status polling
 ) -> dict:
