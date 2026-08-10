@@ -174,7 +174,7 @@ class ProcessRequest(BaseModel):
     max_words: int | None = Field(default=None, ge=1, le=10, description="Words shown on screen at once (caption line length). Default is template-specific.")
     font_size: int | None = Field(default=None, ge=20, le=150, description="Caption font size override. Default is template-specific.")
     target_duration: int | None = Field(default=None, description="Target clip length in seconds")
-    num_clips: int = Field(default=6, ge=1, le=30, description="Number of clips to generate")
+    num_clips: int = Field(default=6, ge=1, le=7, description="Number of clips to generate")
     generate_captions: bool = Field(default=True, description="Whether to generate and burn captions")
     hook_style: str = Field(default="default", description="Global hook text style to apply")
     clip_vibe: str = Field(default="viral", description="AI clip selection vibe")
@@ -368,7 +368,7 @@ async def process(request: Request, background_tasks: BackgroundTasks):
 
             num_clips_val = form.get("num_clips")
             if num_clips_val is not None:
-                num_clips = int(num_clips_val)
+                num_clips = min(int(num_clips_val), 7)
 
             generate_captions_val = form.get("generate_captions")
             if generate_captions_val is not None:

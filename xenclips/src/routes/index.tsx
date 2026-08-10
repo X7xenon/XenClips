@@ -1121,14 +1121,14 @@ function UploadPage() {
                   <input
                     type="range"
                     min={1}
-                    max={15}
+                    max={7}
                     value={Number.isNaN(numClips) ? 1 : numClips}
                     onChange={(e) => setNumClips(Number(e.target.value))}
                     className="w-full"
                   />
                   <div className="flex justify-between text-xs text-gray-500 mt-1">
                     <span>1 (Fastest)</span>
-                    <span>15 (Max)</span>
+                    <span>7 (Max)</span>
                   </div>
                 </div>
 
