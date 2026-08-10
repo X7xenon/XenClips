@@ -13,6 +13,7 @@ import {
   Save,
   Clock,
   Timer,
+  Lock,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -948,15 +949,27 @@ function UploadPage() {
             <div
               className={`grid grid-cols-2 gap-3 transition-opacity duration-300 ${captionsOn ? "opacity-100" : "opacity-40 pointer-events-none"}`}
             >
-              {CAPTION_TEMPLATES.map((t) => {
-                const active = templates.includes(t.value);
+              {CAPTION_TEMPLATES.map((t, index) => {
+                const isPro = index >= 4;
+                const active = templates.includes(t.value) && !isPro;
                 return (
                   <button
                     key={t.value}
                     type="button"
-                    onClick={() => toggleTemplate(t.value)}
-                    className={`card-interactive flex items-start gap-3 p-4 text-left ${active ? "active" : ""}`}
+                    onClick={() => {
+                      if (isPro) {
+                        alert("Unlock all caption styles with XenClips Pro!");
+                        return;
+                      }
+                      toggleTemplate(t.value);
+                    }}
+                    className={`card-interactive relative flex items-start gap-3 p-4 text-left ${active ? "active" : ""} ${isPro ? "opacity-60" : ""}`}
                   >
+                    {isPro && (
+                      <div className="absolute top-2 right-2 flex items-center justify-center w-6 h-6 rounded-full bg-[#8A2BE2]/20 border border-[#8A2BE2]/50">
+                        <Lock className="w-3 h-3 text-[#8A2BE2]" />
+                      </div>
+                    )}
                     <div
                       className={`w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5 transition-all duration-300 ${active ? "bg-gradient-to-br from-[#00F0FF] to-[#8A2BE2] shadow-[0_0_10px_rgba(0,240,255,0.4)] border-none" : "border border-[rgba(255,255,255,0.2)]"}`}
                     >
@@ -964,11 +977,12 @@ function UploadPage() {
                     </div>
                     <div>
                       <div
-                        className={`font-display text-[15px] font-semibold mb-1 ${active ? "text-white" : "text-gray-300"}`}
+                        className={`font-display text-[15px] font-semibold mb-1 flex items-center gap-2 ${active ? "text-white" : "text-gray-300"}`}
                       >
                         {t.label}
+                        {isPro && <span className="text-[9px] font-bold tracking-wider text-[#8A2BE2] bg-[#8A2BE2]/10 px-1.5 py-0.5 rounded border border-[#8A2BE2]/20 uppercase">Pro</span>}
                       </div>
-                      <div className="text-[11px] text-gray-500 leading-snug">{t.hint}</div>
+                      <div className="text-[11px] text-gray-500 leading-snug pr-4">{t.hint}</div>
                     </div>
                   </button>
                 );
