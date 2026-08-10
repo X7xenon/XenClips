@@ -252,6 +252,11 @@ def generate_viral_clips(transcript_path, target_duration=None, num_clips=6, cli
             return clips
         except Exception as e:
             print(f"Gemini failed ({e}), falling back to NVIDIA Nemotron...")
+            nemotron_key = os.getenv("NVIDIA_API_KEY", "YOUR_NVIDIA_API_KEY")
+            if nemotron_key == "YOUR_NVIDIA_API_KEY" or not nemotron_key.strip():
+                print("NVIDIA_API_KEY not set. Skipping Nemotron fallback.")
+                raise Exception(f"Gemini failed and Nemotron fallback is disabled: {e}")
+                
             try:
                 response = ask_nemotron(prompt)
                 clips = extract_json(response)
@@ -262,7 +267,7 @@ def generate_viral_clips(transcript_path, target_duration=None, num_clips=6, cli
                 print("Nemotron retry failed:", nemotron_e)
                 time.sleep(2)
 
-    raise Exception("Failed to generate clips using both Gemini and Nemotron")
+    raise Exception("Failed to generate clips. Please check your Gemini API key and limits.")
 
 
 # ==========================
