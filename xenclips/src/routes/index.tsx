@@ -942,7 +942,7 @@ function UploadPage() {
               <div
                 className={`text-[10px] text-gray-500 uppercase tracking-widest font-semibold font-display transition-opacity ${captionsOn ? "opacity-100" : "opacity-0"}`}
               >
-                Select {MIN_TEMPLATES} to {MAX_TEMPLATES}
+                SELECT 1
               </div>
             </div>
 
