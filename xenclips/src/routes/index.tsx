@@ -602,15 +602,7 @@ function UploadPage() {
   };
 
   const toggleTemplate = (t: CaptionTemplate) => {
-    if (templates.includes(t)) {
-      setTemplates(templates.filter((x) => x !== t));
-    } else {
-      if (templates.length >= MAX_TEMPLATES) {
-        alert(`You can select a maximum of ${MAX_TEMPLATES} templates.`);
-        return;
-      }
-      setTemplates([...templates, t]);
-    }
+    setTemplates([t]);
   };
 
   /* ══ Render: Processing view ═══════════════════════════════ */
@@ -994,8 +986,9 @@ function UploadPage() {
         {/* ── Right Sidebar Options ── */}
         <div className="space-y-6">
           <section className="glass-panel p-5">
-            <div className="label-section mb-4">Layout Aspect</div>
-            <LayoutPicker value={layouts} onChange={setLayouts} />
+            <div className="flex flex-col gap-4">
+              <LayoutPicker value={layouts} onChange={setLayouts} singleSelect={true} />
+            </div>
           </section>
 
           <section className="glass-panel p-5">

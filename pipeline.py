@@ -64,10 +64,10 @@ def run_pipeline(
             "ass_path_map": {template: {clip_number: ass_path}},
         }
     """
-    layouts = layouts or ["bw_letterbox"]
-    templates = templates or ["alex_hormozi", "mrbeast", "podcast"]
-    layouts = list(dict.fromkeys(layouts))     # de-dupe, preserve order
-    templates = list(dict.fromkeys(templates)) if generate_captions else ["none"]
+    layouts = layouts or ["full_vertical"]
+    templates = templates or ["alex_hormozi"]
+    layouts = list(dict.fromkeys(layouts))[:1]     # de-dupe, preserve order, strictly 1
+    templates = list(dict.fromkeys(templates))[:1] if generate_captions else ["none"]
 
     if len(layouts) < MIN_LAYOUTS:
         raise ValueError(f"Provide at least {MIN_LAYOUTS} layout")
