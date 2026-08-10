@@ -1063,26 +1063,30 @@ function UploadPage() {
               </div>
 
               {/* Creator Name in Hook */}
-              <div>
-                <label className="flex items-center gap-3 cursor-pointer mb-2">
+              <div className="relative group mt-4">
+                <div 
+                  className="absolute inset-0 z-10 cursor-pointer"
+                  title="Unlock with XenClips Pro!"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    alert("Unlock 'Include Creator Name' with XenClips Pro!");
+                  }}
+                ></div>
+                <label className="flex items-center gap-3 mb-2 opacity-60">
                   <Switch
-                    checked={creatorNameEnabled}
-                    onCheckedChange={setCreatorNameEnabled}
+                    checked={false}
+                    disabled={true}
                     className="data-[state=checked]:!bg-[#00F0FF]"
                   />
-                  <span className="text-xs font-semibold text-gray-300 uppercase tracking-widest font-display">
-                    Include Creator Name
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-gray-300 uppercase tracking-widest font-display">
+                      Include Creator Name
+                    </span>
+                    <span className="text-[9px] font-bold tracking-wider text-[#8A2BE2] bg-[#8A2BE2]/10 px-1.5 py-0.5 rounded border border-[#8A2BE2]/20 uppercase flex items-center gap-1">
+                      <Lock className="w-2 h-2" /> PRO
+                    </span>
+                  </div>
                 </label>
-                {creatorNameEnabled && (
-                  <input
-                    type="text"
-                    value={creatorName}
-                    onChange={(e) => setCreatorName(e.target.value)}
-                    placeholder="e.g. MrBeast, Ranveer Allahbadia..."
-                    className="w-full bg-[rgba(0,0,0,0.3)] border border-[rgba(255,255,255,0.1)] rounded px-3 py-2 text-sm text-white font-display placeholder-gray-600 focus:border-[#00F0FF] focus:outline-none focus:ring-1 focus:ring-[#00F0FF] transition-all"
-                  />
-                )}
               </div>
             </div>
           </section>
