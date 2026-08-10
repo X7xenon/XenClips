@@ -1231,20 +1231,20 @@ function UploadPage() {
                     className="w-full bg-[rgba(0,0,0,0.3)] border border-[rgba(255,255,255,0.1)] rounded px-3 py-2 text-sm text-white font-display focus:border-[#00F0FF] focus:outline-none focus:ring-1 focus:ring-[#00F0FF] transition-all"
                   >
                     <option value="default">Default</option>
-                    <option value="mrbeast">MrBeast</option>
+                    <option value="mrbeast" disabled>MrBeast (PRO)</option>
                     <option value="neon_blue">Neon Blue</option>
                     <option value="fire">Fire</option>
                     <option value="toxic_green">Toxic Green</option>
-                    <option value="hot_pink">Hot Pink</option>
-                    <option value="purple_glow">Purple Glow</option>
-                    <option value="ice_white">Ice White</option>
-                    <option value="orange_pop">Orange Pop</option>
-                    <option value="yellow_stroke">Yellow Stroke</option>
-                    <option value="gold_luxury">Gold Luxury</option>
-                    <option value="white_box">White Box</option>
-                    <option value="dark_glass">Dark Glass</option>
-                    <option value="red_alert">Red Alert</option>
-                    <option value="cyan_glow">Cyan Glow</option>
+                    <option value="hot_pink" disabled>Hot Pink (PRO)</option>
+                    <option value="purple_glow" disabled>Purple Glow (PRO)</option>
+                    <option value="ice_white" disabled>Ice White (PRO)</option>
+                    <option value="orange_pop" disabled>Orange Pop (PRO)</option>
+                    <option value="yellow_stroke" disabled>Yellow Stroke (PRO)</option>
+                    <option value="gold_luxury" disabled>Gold Luxury (PRO)</option>
+                    <option value="white_box" disabled>White Box (PRO)</option>
+                    <option value="dark_glass" disabled>Dark Glass (PRO)</option>
+                    <option value="red_alert" disabled>Red Alert (PRO)</option>
+                    <option value="cyan_glow" disabled>Cyan Glow (PRO)</option>
                   </select>
                 </div>
 
