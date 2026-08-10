@@ -127,7 +127,7 @@ const faqs = [
   },
   {
     q: "Where are my generated clips saved?",
-    a: "Clips are saved to the output/ folder inside your XenClips installation directory on your local machine.",
+    a: "Clips are generated inside the downloads/ folder within your XenClips installation directory on your local machine (look for the _workspace folder for your specific job). You can also download them directly from the browser.",
   },
 ];
 
