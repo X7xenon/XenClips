@@ -56,6 +56,12 @@ cd XenClips
 pip install -r requirements.txt
 ```
 
+### 🍪 1.5 Setup YouTube Cookies (Optional but Recommended)
+To prevent YouTube from blocking the built-in downloader (`yt-dlp`) and to allow downloading of age-restricted or members-only videos, you should provide your browser's YouTube cookies.
+1. Install a browser extension like [Get cookies.txt LOCALLY](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/ccpbcjjkohhcamlipcnjjkckbcnekief).
+2. Go to YouTube.com, log in to your account, and use the extension to export your cookies.
+3. Save the exported file exactly as `cookies.txt` in the root folder of this project (`XenClips/cookies.txt`).
+
 ### 📥 2. Download AI Models (Important!)
 Because AI models are too large for GitHub, you must download them manually into your project directory before running the app.
 
