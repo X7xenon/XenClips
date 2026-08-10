@@ -15,6 +15,25 @@ def get_youtube_title(url):
     result = subprocess.run(cmd, capture_output=True, text=True, check=True)
     return result.stdout.strip()
 
+def get_youtube_duration(url):
+    cmd = [YT_DLP, "--print", "duration", url]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        duration_str = result.stdout.strip()
+        if duration_str and duration_str != "NA":
+            return float(duration_str)
+    except Exception:
+        pass
+    return 0.0
+
+def get_local_duration(filepath):
+    cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", filepath]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return float(result.stdout.strip())
+    except Exception:
+        return 0.0
+
 
 import json
 import re
@@ -59,8 +78,14 @@ def save_title_to_cache(url: str, title: str):
         pass
 
 def download_video(url):
+    MAX_DURATION_SECONDS = 60 * 60  # 60 minutes
+
     if os.path.isfile(url):
         # Local file path! Bypasses yt-dlp downloading.
+        duration = get_local_duration(url)
+        if duration >= MAX_DURATION_SECONDS:
+            raise ValueError(f"Video is too long! The limit is 60 minutes. Your video is {duration / 60:.1f} minutes.")
+
         title = clean_filename(os.path.splitext(os.path.basename(url))[0])
         folders = create_workspace(title)
         final_video = os.path.join(folders["input"], f"{title}.mp4")
@@ -80,13 +105,20 @@ def download_video(url):
             folders = create_workspace(title)
             final_video = os.path.join(folders["input"], f"{title}.mp4")
             if os.path.exists(final_video):
+                duration = get_local_duration(final_video)
+                if duration >= MAX_DURATION_SECONDS:
+                    raise ValueError(f"Video is too long! The limit is 60 minutes. Your video is {duration / 60:.1f} minutes.")
                 return {
                     "title": title,
                     "workspace": folders["workspace"],
                     "video_path": final_video,
                 }
         
-        # If not cached, fetch title
+        # If not cached, fetch title and duration
+        duration = get_youtube_duration(url)
+        if duration >= MAX_DURATION_SECONDS:
+            raise ValueError(f"Video is too long! The limit is 60 minutes. Your video is {duration / 60:.1f} minutes.")
+
         raw_title = get_youtube_title(url)
         save_title_to_cache(url, raw_title)
         title = clean_filename(raw_title)
