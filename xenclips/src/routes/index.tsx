@@ -537,7 +537,7 @@ function UploadPage() {
               speed_ramp_max: speedRampMax,
             }
           : {}),
-        ...(watermarkEnabled
+        ...(false /* PRO LOCKED */ && watermarkEnabled
           ? {
               watermark_enabled: true,
               watermark_type: watermarkType,
@@ -1386,16 +1386,29 @@ function UploadPage() {
             {watermarksOpen && (
               <div className="mt-6 space-y-6 animate-fade-in-up">
                 <div className="bg-[rgba(255,255,255,0.02)] p-4 rounded-xl border border-[rgba(255,255,255,0.05)]">
-                  <div className="flex justify-between items-center mb-4">
-                    <label className="flex items-center gap-3 cursor-pointer">
+                  <div className="flex justify-between items-center mb-4 relative group">
+                    <div 
+                      className="absolute inset-0 z-10 cursor-pointer"
+                      title="Unlock with XenClips Pro!"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        alert("Unlock 'Watermarks' with XenClips Pro!");
+                      }}
+                    ></div>
+                    <label className="flex items-center gap-3 opacity-60">
                       <Switch
-                        checked={watermarkEnabled}
-                        onCheckedChange={setWatermarkEnabled}
+                        checked={false}
+                        disabled={true}
                         className="data-[state=checked]:!bg-[#00F0FF]"
                       />
-                      <span className="text-sm font-semibold text-white tracking-wide font-display">
-                        Enable Watermark
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-white tracking-wide font-display">
+                          Enable Watermark
+                        </span>
+                        <span className="text-[9px] font-bold tracking-wider text-[#8A2BE2] bg-[#8A2BE2]/10 px-1.5 py-0.5 rounded border border-[#8A2BE2]/20 uppercase flex items-center gap-1">
+                          <Lock className="w-3 h-3 text-[#8A2BE2]" /> PRO
+                        </span>
+                      </div>
                     </label>
                   </div>
 
